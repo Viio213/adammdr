@@ -136,19 +136,28 @@ import { Agent, JourSemaine, DemiJournee, JOURS_SEMAINE } from '../../models/age
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 24px;
+      margin-bottom: 0;
+      padding-bottom: 24px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    
+    .card-header h2 {
+      font-size: 28px;
+      font-weight: 700;
+      color: #1e293b;
+      margin: 0;
     }
     
     .btn-sm {
-      padding: 6px 12px;
-      font-size: 14px;
-      margin: 0 4px;
+      padding: 8px 16px;
+      font-size: 13px;
+      margin: 0 2px;
     }
     
     .text-center {
       text-align: center;
-      padding: 20px;
-      color: #999;
+      padding: 40px 20px;
+      color: #94a3b8;
     }
     
     .modal {
@@ -157,78 +166,124 @@ import { Agent, JourSemaine, DemiJournee, JOURS_SEMAINE } from '../../models/age
       left: 0;
       right: 0;
       bottom: 0;
-      background: rgba(0, 0, 0, 0.5);
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(4px);
       display: flex;
       align-items: center;
       justify-content: center;
       z-index: 2000;
       padding: 20px;
+      animation: fadeIn 0.2s ease;
+    }
+    
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
     }
     
     .modal-content {
       background: white;
-      border-radius: 12px;
-      max-width: 600px;
+      border-radius: 16px;
+      max-width: 700px;
       width: 100%;
       max-height: 90vh;
       overflow-y: auto;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      animation: slideUp 0.3s ease;
+      border: 1px solid #e2e8f0;
+    }
+    
+    @keyframes slideUp {
+      from {
+        transform: translateY(20px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
     }
     
     .modal-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 20px;
-      border-bottom: 1px solid #e0e0e0;
+      padding: 24px;
+      border-bottom: 2px solid #e2e8f0;
     }
     
     .modal-header h3 {
       margin: 0;
+      font-size: 22px;
+      font-weight: 700;
+      color: #1e293b;
     }
     
     .btn-close {
-      background: none;
+      background: #f1f5f9;
       border: none;
-      font-size: 32px;
+      font-size: 24px;
       cursor: pointer;
-      color: #999;
+      color: #64748b;
       line-height: 1;
       padding: 0;
-      width: 32px;
-      height: 32px;
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+    
+    .btn-close:hover {
+      background: #e2e8f0;
+      color: #1e293b;
     }
     
     .modal-content form {
-      padding: 20px;
+      padding: 24px;
     }
     
     .disponibilites-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
       gap: 16px;
-      margin-top: 12px;
+      margin-top: 16px;
     }
     
     .jour-dispo {
-      padding: 12px;
-      background: #f8f9fa;
-      border-radius: 6px;
+      padding: 16px;
+      background: #f8fafc;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+      transition: all 0.2s ease;
+    }
+    
+    .jour-dispo:hover {
+      background: #f1f5f9;
+      border-color: #cbd5e1;
     }
     
     .jour-dispo strong {
       display: block;
-      margin-bottom: 8px;
-      color: #555;
+      margin-bottom: 12px;
+      color: #1e293b;
+      font-size: 14px;
+      font-weight: 600;
     }
     
     .modal-actions {
       display: flex;
       justify-content: flex-end;
       gap: 12px;
-      margin-top: 24px;
-      padding-top: 20px;
-      border-top: 1px solid #e0e0e0;
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 2px solid #e2e8f0;
     }
   `]
 })

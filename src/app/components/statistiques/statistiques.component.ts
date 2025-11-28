@@ -180,17 +180,30 @@ import { StatistiqueBinome, StatistiqueZone, StatistiqueAgent } from '../../mode
   `,
   styles: [`
     .card-header {
-      margin-bottom: 24px;
+      margin-bottom: 0;
+      padding-bottom: 24px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    
+    .card-header h2 {
+      font-size: 28px;
+      font-weight: 700;
+      color: #1e293b;
+      margin: 0;
     }
     
     .stats-description {
-      color: #666;
-      margin-bottom: 16px;
-      font-style: italic;
+      color: #64748b;
+      margin: 24px 0;
+      font-size: 14px;
+      line-height: 1.6;
     }
     
     .table-wrapper {
       overflow-x: auto;
+      margin-top: 24px;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
     }
     
     .agents-list,
@@ -198,49 +211,71 @@ import { StatistiqueBinome, StatistiqueZone, StatistiqueAgent } from '../../mode
     .partenaires-list {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px;
+      gap: 8px;
     }
     
     .agent-badge,
     .zone-badge,
     .partenaire-badge {
       display: inline-block;
-      padding: 4px 8px;
-      background: #e3f2fd;
-      border-radius: 4px;
+      padding: 6px 12px;
+      background: #eef2ff;
+      color: #4338ca;
+      border-radius: 6px;
       font-size: 12px;
+      font-weight: 500;
+      border: 1px solid #e0e7ff;
     }
     
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
       gap: 24px;
+      margin-top: 24px;
+    }
+    
+    .stats-section {
+      background: #f8fafc;
+      padding: 20px;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
     }
     
     .stats-section h3 {
-      margin-bottom: 16px;
-      color: #555;
+      margin: 0 0 16px 0;
+      color: #1e293b;
+      font-size: 18px;
+      font-weight: 600;
     }
     
     .stats-list {
       list-style: none;
       padding: 0;
+      margin: 0;
     }
     
     .stats-list li {
-      padding: 12px;
+      padding: 14px 16px;
       margin-bottom: 8px;
-      background: #f8f9fa;
-      border-radius: 6px;
+      background: white;
+      border-radius: 8px;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      border: 1px solid #e2e8f0;
+      transition: all 0.2s ease;
+    }
+    
+    .stats-list li:hover {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+      transform: translateX(2px);
     }
     
     .text-center {
       text-align: center;
-      padding: 20px;
-      color: #999;
+      padding: 40px 20px;
+      color: #94a3b8;
     }
   `]
 })

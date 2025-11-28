@@ -24,9 +24,8 @@ import { CommonModule } from '@angular/common';
   `,
   styles: [`
     .navbar {
-      background: white;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-      padding: 16px 0;
+      background: #2d5016;
+      padding: 0;
       position: sticky;
       top: 0;
       z-index: 1000;
@@ -35,54 +34,70 @@ import { CommonModule } from '@angular/common';
     .navbar .container {
       max-width: 1400px;
       margin: 0 auto;
-      padding: 0 20px;
+      padding: 0 24px;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      height: 60px;
     }
     
     .nav-brand h1 {
       margin: 0;
-      font-size: 24px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.5px;
     }
     
     .nav-links {
       display: flex;
       list-style: none;
-      gap: 24px;
+      gap: 4px;
       margin: 0;
       padding: 0;
+      height: 100%;
+      align-items: center;
     }
     
     .nav-links a {
       text-decoration: none;
-      color: #555;
-      font-weight: 600;
-      padding: 8px 16px;
+      color: rgba(255,255,255,0.8);
+      font-weight: 500;
+      padding: 10px 18px;
       border-radius: 6px;
-      transition: all 0.3s ease;
+      transition: all 0.2s ease;
+      font-size: 14px;
     }
     
-    .nav-links a:hover,
+    .nav-links a:hover {
+      color: #fff;
+      background: rgba(255,255,255,0.1);
+    }
+    
     .nav-links a.active {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
+      color: #2d5016;
+      background: #c5e1a5;
+      font-weight: 600;
     }
     
     @media (max-width: 768px) {
       .navbar .container {
         flex-direction: column;
-        gap: 16px;
+        height: auto;
+        padding: 12px 16px;
+        gap: 12px;
       }
       
       .nav-links {
+        width: 100%;
         flex-wrap: wrap;
         justify-content: center;
-        gap: 12px;
+        gap: 4px;
+      }
+      
+      .nav-links a {
+        padding: 8px 14px;
+        font-size: 13px;
       }
     }
   `]

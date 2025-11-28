@@ -19,11 +19,12 @@ import { NavigationComponent } from './components/navigation/navigation.componen
       min-height: 100vh;
       display: flex;
       flex-direction: column;
+      background: #f8fafc;
     }
     
     .main-content {
       flex: 1;
-      padding-top: 20px;
+      padding: 0;
     }
   `]
 })

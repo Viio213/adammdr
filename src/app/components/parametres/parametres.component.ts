@@ -69,45 +69,85 @@ import { DataService } from '../../services/data.service';
     </div>
   `,
   styles: [`
+    .card-header {
+      margin-bottom: 0;
+      padding-bottom: 24px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    
+    .card-header h2 {
+      font-size: 28px;
+      font-weight: 700;
+      color: #1e293b;
+      margin: 0;
+    }
+    
     .settings-section {
       padding: 24px;
       margin-bottom: 24px;
-      background: #f8f9fa;
-      border-radius: 8px;
-      border-left: 4px solid #667eea;
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      border-radius: 12px;
+      border-left: 4px solid #6366f1;
+      transition: all 0.2s ease;
+    }
+    
+    .settings-section:hover {
+      border-left-color: #4f46e5;
+      box-shadow: 0 2px 8px rgba(99, 102, 241, 0.1);
     }
     
     .settings-section h3 {
-      margin-top: 0;
-      margin-bottom: 12px;
-      color: #555;
+      margin: 0 0 12px 0;
+      color: #1e293b;
+      font-size: 18px;
+      font-weight: 600;
     }
     
     .settings-section p {
-      color: #666;
+      color: #64748b;
       margin-bottom: 16px;
+      line-height: 1.6;
+      font-size: 14px;
     }
     
     .import-warning {
-      padding: 12px;
-      background: #fff3cd;
-      border: 1px solid #ffc107;
-      border-radius: 6px;
-      margin-bottom: 12px;
-      color: #856404;
+      padding: 14px 16px;
+      background: #fef3c7;
+      border: 1px solid #fbbf24;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      color: #92400e;
+      font-size: 14px;
+      font-weight: 500;
     }
     
     .info-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 16px;
     }
     
     .info-item {
-      padding: 12px;
+      padding: 16px;
       background: white;
-      border-radius: 6px;
-      border: 1px solid #e0e0e0;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+      transition: all 0.2s ease;
+    }
+    
+    .info-item:hover {
+      border-color: #cbd5e1;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+    
+    .info-item strong {
+      display: block;
+      color: #64748b;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+      font-weight: 600;
     }
   `]
 })

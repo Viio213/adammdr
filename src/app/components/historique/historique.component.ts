@@ -117,9 +117,18 @@ import { HistoriqueEntry } from '../../models/historique.model';
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 24px;
+      margin-bottom: 0;
+      padding-bottom: 24px;
+      border-bottom: 2px solid #e2e8f0;
       flex-wrap: wrap;
       gap: 16px;
+    }
+    
+    .card-header h2 {
+      font-size: 28px;
+      font-weight: 700;
+      color: #1e293b;
+      margin: 0;
     }
     
     .header-actions {
@@ -129,36 +138,60 @@ import { HistoriqueEntry } from '../../models/historique.model';
     }
     
     .date-input {
-      width: 150px;
+      min-width: 160px;
     }
     
     .historique-stats {
-      margin-bottom: 16px;
-      padding: 12px;
-      background: #f8f9fa;
-      border-radius: 6px;
+      margin: 24px 0;
+      padding: 16px 20px;
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      border-radius: 10px;
+      border-left: 4px solid #6366f1;
+    }
+    
+    .historique-stats p {
+      margin: 0;
+      font-size: 15px;
+      color: #475569;
+    }
+    
+    .historique-stats strong {
+      color: #1e293b;
+      font-weight: 600;
     }
     
     .table-wrapper {
       overflow-x: auto;
+      margin-top: 24px;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
     }
     
     .inline-input {
       width: 100%;
-      padding: 6px;
-      font-size: 12px;
-      min-width: 100px;
+      padding: 8px 12px;
+      font-size: 13px;
+      min-width: 120px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+    }
+    
+    .inline-input:focus {
+      outline: none;
+      border-color: #6366f1;
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
     }
     
     .btn-sm {
-      padding: 6px 12px;
-      font-size: 14px;
+      padding: 8px 16px;
+      font-size: 13px;
     }
     
     .text-center {
       text-align: center;
-      padding: 20px;
-      color: #999;
+      padding: 40px 20px;
+      color: #94a3b8;
     }
   `]
 })
