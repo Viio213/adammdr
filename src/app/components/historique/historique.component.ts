@@ -12,7 +12,7 @@ import { HistoriqueEntry } from '../../models/historique.model';
     <div class="container">
       <div class="card">
         <div class="card-header">
-          <h2>📚 Historique des Plannings</h2>
+          <h2>Historique des Plannings</h2>
           <div class="header-actions">
             <input 
               type="date" 
@@ -27,13 +27,13 @@ import { HistoriqueEntry } from '../../models/historique.model';
               placeholder="Date fin"
             />
             <button class="btn btn-secondary" (click)="appliquerFiltres()">
-              🔍 Filtrer
+              Filtrer
             </button>
             <button class="btn btn-secondary" (click)="reinitialiserFiltres()">
-              🔄 Réinitialiser
+              Réinitialiser
             </button>
             <button class="btn btn-success" (click)="exporterHistorique()">
-              💾 Exporter
+              Exporter
             </button>
           </div>
         </div>
@@ -99,7 +99,7 @@ import { HistoriqueEntry } from '../../models/historique.model';
                 </td>
                 <td>
                   <button class="btn btn-danger btn-sm" (click)="supprimerEntry(entry.id)">
-                    🗑️
+                    Supprimer
                   </button>
                 </td>
               </tr>

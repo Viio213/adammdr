@@ -12,7 +12,7 @@ import { StatistiqueBinome, StatistiqueZone, StatistiqueAgent } from '../../mode
       <!-- Statistiques Binômes -->
       <div class="card">
         <div class="card-header">
-          <h2>👥 Statistiques des Binômes</h2>
+          <h2>Statistiques des Binômes</h2>
         </div>
         <div class="stats-content">
           <p class="stats-description">
@@ -51,7 +51,7 @@ import { StatistiqueBinome, StatistiqueZone, StatistiqueAgent } from '../../mode
       <!-- Statistiques Zones -->
       <div class="card">
         <div class="card-header">
-          <h2>📍 Statistiques des Zones</h2>
+          <h2>Statistiques des Zones</h2>
         </div>
         <div class="stats-content">
           <p class="stats-description">
@@ -92,7 +92,7 @@ import { StatistiqueBinome, StatistiqueZone, StatistiqueAgent } from '../../mode
       <!-- Statistiques Agents -->
       <div class="card">
         <div class="card-header">
-          <h2>👤 Statistiques par Agent</h2>
+          <h2>Statistiques par Agent</h2>
         </div>
         <div class="stats-content">
           <p class="stats-description">
@@ -151,7 +151,7 @@ import { StatistiqueBinome, StatistiqueZone, StatistiqueAgent } from '../../mode
       <!-- Paires les plus/moins fréquentes -->
       <div class="card">
         <div class="card-header">
-          <h2>📊 Analyse des Paires</h2>
+          <h2>Analyse des Paires</h2>
         </div>
         <div class="stats-grid">
           <div class="stats-section">

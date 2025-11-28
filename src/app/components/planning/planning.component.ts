@@ -14,7 +14,7 @@ import { JourSemaine, DemiJournee, JOURS_SEMAINE } from '../../models/agent.mode
     <div class="container">
       <div class="card">
         <div class="card-header">
-          <h2>📋 Planning de la Semaine</h2>
+          <h2>Planning de la Semaine</h2>
           <div class="header-actions">
             <input 
               type="date" 
@@ -22,7 +22,7 @@ import { JourSemaine, DemiJournee, JOURS_SEMAINE } from '../../models/agent.mode
               class="form-control date-input"
             />
             <button class="btn btn-primary" (click)="genererPlanning()">
-              🎲 Générer Planning
+              Générer Planning
             </button>
             <button 
               class="btn btn-secondary" 

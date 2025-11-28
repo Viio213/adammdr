@@ -11,22 +11,22 @@ import { DataService } from '../../services/data.service';
     <div class="container">
       <div class="card">
         <div class="card-header">
-          <h2>⚙️ Paramètres</h2>
+          <h2>Paramètres</h2>
         </div>
 
         <div class="settings-section">
-          <h3>📤 Export de Données</h3>
+          <h3>Export de Données</h3>
           <p>Exportez toutes vos données (agents, historique, plannings) au format JSON.</p>
           <button class="btn btn-primary" (click)="exporterDonnees()">
-            💾 Exporter toutes les données
+            Exporter toutes les données
           </button>
         </div>
 
         <div class="settings-section">
-          <h3>📥 Import de Données</h3>
+          <h3>Import de Données</h3>
           <p>Importez des données depuis un fichier JSON précédemment exporté.</p>
           <div class="import-warning" *ngIf="showWarning">
-            ⚠️ L'import remplacera toutes vos données actuelles !
+            L'import remplacera toutes vos données actuelles !
           </div>
           <input 
             type="file" 
@@ -36,20 +36,20 @@ import { DataService } from '../../services/data.service';
             style="display: none"
           />
           <button class="btn btn-secondary" (click)="fileInput.click()">
-            📁 Choisir un fichier
+            Choisir un fichier
           </button>
         </div>
 
         <div class="settings-section">
-          <h3>🗑️ Réinitialisation</h3>
+          <h3>Réinitialisation</h3>
           <p>Supprimez toutes les données stockées localement.</p>
           <button class="btn btn-danger" (click)="reinitialiserDonnees()">
-            🔄 Réinitialiser toutes les données
+            Réinitialiser toutes les données
           </button>
         </div>
 
         <div class="settings-section">
-          <h3>ℹ️ Informations</h3>
+          <h3>Informations</h3>
           <div class="info-grid">
             <div class="info-item">
               <strong>Agents:</strong> {{ nombreAgents }}
@@ -146,7 +146,7 @@ export class ParametresComponent {
     
     if (!file) return;
 
-    if (!confirm('⚠️ Cette action remplacera toutes vos données actuelles. Continuer ?')) {
+    if (!confirm('Cette action remplacera toutes vos données actuelles. Continuer ?')) {
       return;
     }
 
@@ -157,15 +157,15 @@ export class ParametresComponent {
         const success = this.dataService.importData(jsonData);
         
         if (success) {
-          alert('✅ Données importées avec succès !');
+          alert('Données importées avec succès !');
           this.chargerStatistiques();
           // Reload page to refresh all components
           window.location.reload();
         } else {
-          alert('❌ Erreur lors de l\'import des données.');
+          alert('Erreur lors de l\'import des données.');
         }
       } catch (error) {
-        alert('❌ Erreur: Fichier invalide.');
+        alert('Erreur: Fichier invalide.');
         console.error(error);
       }
     };
@@ -173,16 +173,16 @@ export class ParametresComponent {
   }
 
   reinitialiserDonnees(): void {
-    if (!confirm('⚠️ Êtes-vous sûr de vouloir supprimer TOUTES les données ? Cette action est irréversible !')) {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer TOUTES les données ? Cette action est irréversible !')) {
       return;
     }
 
-    if (!confirm('⚠️ Dernière confirmation : supprimer toutes les données ?')) {
+    if (!confirm('Dernière confirmation : supprimer toutes les données ?')) {
       return;
     }
 
     localStorage.clear();
-    alert('✅ Toutes les données ont été supprimées. La page va se recharger.');
+    alert('Toutes les données ont été supprimées. La page va se recharger.');
     window.location.reload();
   }
 }

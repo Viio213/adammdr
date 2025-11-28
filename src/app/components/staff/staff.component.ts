@@ -12,9 +12,9 @@ import { Agent, JourSemaine, DemiJournee, JOURS_SEMAINE } from '../../models/age
     <div class="container">
       <div class="card">
         <div class="card-header">
-          <h2>👥 Gestion du Staff</h2>
+          <h2>Gestion du Staff</h2>
           <button class="btn btn-primary" (click)="ouvrirModalAjout()">
-            ➕ Ajouter un Agent
+            Ajouter un Agent
           </button>
         </div>
 
@@ -47,10 +47,10 @@ import { Agent, JourSemaine, DemiJournee, JOURS_SEMAINE } from '../../models/age
                 </td>
                 <td>
                   <button class="btn btn-secondary btn-sm" (click)="editerAgent(agent)">
-                    ✏️
+                    Modifier
                   </button>
                   <button class="btn btn-danger btn-sm" (click)="supprimerAgent(agent.id)">
-                    🗑️
+                    Supprimer
                   </button>
                 </td>
               </tr>

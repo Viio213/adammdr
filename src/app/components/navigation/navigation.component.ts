@@ -10,7 +10,7 @@ import { CommonModule } from '@angular/common';
     <nav class="navbar">
       <div class="container">
         <div class="nav-brand">
-          <h1>📅 Planning ADAMMDR</h1>
+          <h1>Planning ADAMMDR</h1>
         </div>
         <ul class="nav-links">
           <li><a routerLink="/planning" routerLinkActive="active">Planning</a></li>
