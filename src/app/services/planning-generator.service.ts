@@ -10,6 +10,9 @@ import { DataService } from './data.service';
 export class PlanningGeneratorService {
   private dataService = inject(DataService);
 
+  // Available zones for random assignment
+  private readonly ZONES = ['Zone 1', 'Zone 2', 'Zone 3', 'Zone 4'];
+
   /**
    * Generate a weekly planning respecting all constraints
    */
@@ -119,7 +122,8 @@ export class PlanningGeneratorService {
         agentsGroupe.forEach(a => agentsUtilises.add(a.id));
         groupes.push({
           id: this.generateId(),
-          agents: agentsGroupe
+          agents: agentsGroupe,
+          zone: this.getRandomZone(groupes)
         });
       } else {
         break;
@@ -258,6 +262,19 @@ export class PlanningGeneratorService {
    */
   private generateId(): string {
     return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+  }
+
+  /**
+   * Get a random zone, trying to avoid already assigned zones in the same half-day
+   */
+  private getRandomZone(existingGroupes: Groupe[]): string {
+    const usedZones = existingGroupes.map(g => g.zone).filter(Boolean);
+    const availableZones = this.ZONES.filter(z => !usedZones.includes(z));
+    
+    // If all zones are used, pick any random zone
+    const zonesToPick = availableZones.length > 0 ? availableZones : this.ZONES;
+    
+    return zonesToPick[Math.floor(Math.random() * zonesToPick.length)];
   }
 
   /**

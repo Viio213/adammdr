@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { PlanningGeneratorService } from '../../services/planning-generator.service';
 import { DataService } from '../../services/data.service';
+import { ExcelExportService } from '../../services/excel-export.service';
 import { PlanningSemaine, Groupe } from '../../models/planning.model';
 import { JourSemaine, DemiJournee } from '../../models/agent.model';
 
@@ -32,6 +33,12 @@ interface DisplayRow {
             />
             <button class="btn btn-primary" (click)="genererPlanning()">
               Générer Planning
+            </button>
+            <button 
+              class="btn btn-success" 
+              (click)="exporterExcel()" 
+              [disabled]="!planningActuel()">
+              Export Excel
             </button>
           </div>
         </div>
@@ -418,6 +425,7 @@ interface DisplayRow {
 export class PlanningComponent {
   private planningGenerator = inject(PlanningGeneratorService);
   private dataService = inject(DataService);
+  private excelExport = inject(ExcelExportService);
 
   planningActuel = signal<PlanningSemaine | null>(null);
   dateDebutSemaine = this.getLundiSemaine(new Date()).toISOString().split('T')[0];
@@ -504,6 +512,13 @@ export class PlanningComponent {
     if (planning) {
       this.planningActuel.set(planning);
       this.dateDebutSemaine = planning.dateDebut.toISOString().split('T')[0];
+    }
+  }
+
+  exporterExcel(): void {
+    const planning = this.planningActuel();
+    if (planning) {
+      this.excelExport.exportPlanningToExcel(planning);
     }
   }
 

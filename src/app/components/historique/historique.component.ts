@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DataService } from '../../services/data.service';
+import { ExcelExportService } from '../../services/excel-export.service';
 import { HistoriqueEntry } from '../../models/historique.model';
 
 @Component({
@@ -33,7 +34,10 @@ import { HistoriqueEntry } from '../../models/historique.model';
               Réinitialiser
             </button>
             <button class="btn btn-success" (click)="exporterHistorique()">
-              Exporter
+              Export JSON
+            </button>
+            <button class="btn btn-success" (click)="exporterExcel()">
+              Export Excel
             </button>
           </div>
         </div>
@@ -197,6 +201,7 @@ import { HistoriqueEntry } from '../../models/historique.model';
 })
 export class HistoriqueComponent {
   private dataService = inject(DataService);
+  private excelExport = inject(ExcelExportService);
 
   historique = signal<HistoriqueEntry[]>([]);
   historiqueFiltre = signal<HistoriqueEntry[]>([]);
@@ -260,6 +265,10 @@ export class HistoriqueComponent {
     a.download = `historique-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  exporterExcel(): void {
+    this.excelExport.exportHistoriqueToExcel(this.historiqueFiltre());
   }
 
   formatDate(date: Date): string {

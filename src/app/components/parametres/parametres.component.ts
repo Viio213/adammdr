@@ -2,6 +2,7 @@ import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DataService } from '../../services/data.service';
+import { ExcelExportService } from '../../services/excel-export.service';
 
 @Component({
   selector: 'app-parametres',
@@ -16,10 +17,15 @@ import { DataService } from '../../services/data.service';
 
         <div class="settings-section">
           <h3>Export de Données</h3>
-          <p>Exportez toutes vos données (agents, historique, plannings) au format JSON.</p>
-          <button class="btn btn-primary" (click)="exporterDonnees()">
-            Exporter toutes les données
-          </button>
+          <p>Exportez toutes vos données (agents, historique, plannings).</p>
+          <div class="export-buttons">
+            <button class="btn btn-primary" (click)="exporterDonnees()">
+              Export JSON
+            </button>
+            <button class="btn btn-success" (click)="exporterExcel()">
+              Export Excel
+            </button>
+          </div>
         </div>
 
         <div class="settings-section">
@@ -149,10 +155,17 @@ import { DataService } from '../../services/data.service';
       margin-bottom: 8px;
       font-weight: 600;
     }
+    
+    .export-buttons {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
   `]
 })
 export class ParametresComponent {
   private dataService = inject(DataService);
+  private excelExport = inject(ExcelExportService);
 
   showWarning = false;
   nombreAgents = 0;
@@ -178,6 +191,10 @@ export class ParametresComponent {
     a.download = `adammdr-backup-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  exporterExcel(): void {
+    this.excelExport.exportAllToExcel();
   }
 
   importerDonnees(event: Event): void {
