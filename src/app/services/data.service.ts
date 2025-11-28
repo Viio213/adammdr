@@ -78,7 +78,27 @@ export class DataService {
   }
 
   addPlanning(planning: PlanningSemaine): void {
-    const plannings = [...this.plannings(), planning];
+    // Remove existing planning for the same week if exists
+    const existingIndex = this.plannings().findIndex(p => {
+      const pDebut = new Date(p.dateDebut).toISOString().split('T')[0];
+      const newDebut = new Date(planning.dateDebut).toISOString().split('T')[0];
+      return pDebut === newDebut;
+    });
+    
+    let plannings: PlanningSemaine[];
+    if (existingIndex >= 0) {
+      plannings = [...this.plannings()];
+      plannings[existingIndex] = planning;
+    } else {
+      plannings = [...this.plannings(), planning];
+    }
+    
+    this.plannings.set(plannings);
+    this.savePlannings(plannings);
+  }
+
+  updatePlanning(planning: PlanningSemaine): void {
+    const plannings = this.plannings().map(p => p.id === planning.id ? planning : p);
     this.plannings.set(plannings);
     this.savePlannings(plannings);
   }
@@ -87,12 +107,30 @@ export class DataService {
     const aujourdhui = new Date();
     aujourdhui.setHours(0, 0, 0, 0);
     
-    return this.plannings().find(p => {
+    // First try to find planning for current week
+    const currentWeekPlanning = this.plannings().find(p => {
       const debut = new Date(p.dateDebut);
       debut.setHours(0, 0, 0, 0);
       const fin = new Date(p.dateFin);
       fin.setHours(23, 59, 59, 999);
       return aujourdhui >= debut && aujourdhui <= fin;
+    });
+    
+    if (currentWeekPlanning) return currentWeekPlanning;
+    
+    // Otherwise return the most recently generated planning
+    const sortedPlannings = [...this.plannings()].sort((a, b) => 
+      new Date(b.dateGeneration).getTime() - new Date(a.dateGeneration).getTime()
+    );
+    
+    return sortedPlannings[0] || null;
+  }
+
+  getPlanningByDate(dateDebut: Date): PlanningSemaine | null {
+    const targetDate = new Date(dateDebut).toISOString().split('T')[0];
+    return this.plannings().find(p => {
+      const pDate = new Date(p.dateDebut).toISOString().split('T')[0];
+      return pDate === targetDate;
     }) || null;
   }
 

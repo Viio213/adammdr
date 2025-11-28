@@ -138,6 +138,7 @@ import { ZONES } from '../../models/zone.model';
                             type="checkbox" 
                             [(ngModel)]="groupe.vehicule"
                             [disabled]="!canEdit || planningActuel()!.isConfirmed"
+                            (change)="sauvegarderPlanning()"
                           />
                           <span class="checkmark"></span>
                         </label>
@@ -151,6 +152,7 @@ import { ZONES } from '../../models/zone.model';
                           [(ngModel)]="groupe.mission" 
                           class="cell-input"
                           placeholder="Mission..."
+                          (blur)="sauvegarderPlanning()"
                         />
                         <span *ngIf="!canEdit || planningActuel()!.isConfirmed" class="readonly-value">
                           {{ groupe.mission || '-' }}
@@ -165,6 +167,7 @@ import { ZONES } from '../../models/zone.model';
                           [(ngModel)]="groupe.reunion" 
                           class="cell-input"
                           placeholder="Réunion..."
+                          (blur)="sauvegarderPlanning()"
                         />
                         <span *ngIf="!canEdit || planningActuel()!.isConfirmed" class="readonly-value">
                           {{ groupe.reunion || '-' }}
@@ -179,6 +182,7 @@ import { ZONES } from '../../models/zone.model';
                           [(ngModel)]="groupe.commentaires" 
                           class="cell-input"
                           placeholder="Commentaire..."
+                          (blur)="sauvegarderPlanning()"
                         />
                         <span *ngIf="!canEdit || planningActuel()!.isConfirmed" class="readonly-value">
                           {{ groupe.commentaires || '-' }}
@@ -251,6 +255,7 @@ import { ZONES } from '../../models/zone.model';
                             type="checkbox" 
                             [(ngModel)]="groupe.vehicule"
                             [disabled]="!canEdit || planningActuel()!.isConfirmed"
+                            (change)="sauvegarderPlanning()"
                           />
                           <span class="checkmark"></span>
                         </label>
@@ -263,6 +268,7 @@ import { ZONES } from '../../models/zone.model';
                           type="text" 
                           [(ngModel)]="groupe.mission" 
                           class="cell-input"
+                          (blur)="sauvegarderPlanning()"
                         />
                         <span *ngIf="!canEdit || planningActuel()!.isConfirmed" class="readonly-value">
                           {{ groupe.mission || '-' }}
@@ -276,6 +282,7 @@ import { ZONES } from '../../models/zone.model';
                           type="text" 
                           [(ngModel)]="groupe.reunion" 
                           class="cell-input"
+                          (blur)="sauvegarderPlanning()"
                         />
                         <span *ngIf="!canEdit || planningActuel()!.isConfirmed" class="readonly-value">
                           {{ groupe.reunion || '-' }}
@@ -289,6 +296,7 @@ import { ZONES } from '../../models/zone.model';
                           type="text" 
                           [(ngModel)]="groupe.commentaires" 
                           class="cell-input"
+                          (blur)="sauvegarderPlanning()"
                         />
                         <span *ngIf="!canEdit || planningActuel()!.isConfirmed" class="readonly-value">
                           {{ groupe.commentaires || '-' }}
@@ -661,11 +669,8 @@ export class PlanningComponent {
 
     const updatedPlanning = this.planningGenerator.regenerateJour(planning, jour);
     
-    // Update in storage
-    const plannings = this.dataService.getPlannings().map((p: PlanningSemaine) => 
-      p.id === updatedPlanning.id ? updatedPlanning : p
-    );
-    this.dataService.plannings.set(plannings);
+    // Update in storage and save to localStorage
+    this.dataService.updatePlanning(updatedPlanning);
     
     this.planningActuel.set(updatedPlanning);
   }
@@ -722,6 +727,14 @@ export class PlanningComponent {
       }
     } else {
       groupe.ecoleId = undefined;
+    }
+    this.sauvegarderPlanning();
+  }
+
+  sauvegarderPlanning(): void {
+    const planning = this.planningActuel();
+    if (planning) {
+      this.dataService.updatePlanning(planning);
     }
   }
 
