@@ -57,6 +57,7 @@ import { HistoriqueEntry } from '../../models/historique.model';
                 <th>Demi-journée</th>
                 <th>Binômes</th>
                 <th>Zone</th>
+                <th>Véhicule</th>
                 <th>Mission</th>
                 <th>Réunion</th>
                 <th>Commentaires</th>
@@ -69,13 +70,11 @@ import { HistoriqueEntry } from '../../models/historique.model';
                 <td>{{ entry.jour }}</td>
                 <td>{{ entry.demiJournee === 'MATIN' ? 'Matin' : 'Après-midi' }}</td>
                 <td><strong>{{ entry.binomes }}</strong></td>
+                <td>{{ entry.zoneName || '-' }}</td>
                 <td>
-                  <input 
-                    type="text" 
-                    [(ngModel)]="entry.zone" 
-                    class="form-control inline-input"
-                    (blur)="sauvegarderEntry(entry)"
-                  />
+                  <span [class]="entry.vehicule ? 'badge badge-success' : 'badge badge-secondary'">
+                    {{ entry.vehicule ? 'Oui' : 'Non' }}
+                  </span>
                 </td>
                 <td>
                   <input 
@@ -108,7 +107,7 @@ import { HistoriqueEntry } from '../../models/historique.model';
                 </td>
               </tr>
               <tr *ngIf="historiqueFiltre().length === 0">
-                <td colspan="9" class="text-center">Aucun historique disponible</td>
+                <td colspan="10" class="text-center">Aucun historique disponible</td>
               </tr>
             </tbody>
           </table>

@@ -100,7 +100,7 @@ export class ExcelExportService {
     const rows: any[] = [];
 
     // Header row
-    rows.push(['DATE', 'JOUR', 'DEMI-JOURNÉE', 'BINÔMES', 'ZONE', 'ECOLE', 'MISSION', 'VOITURE', 'COMMENTAIRES']);
+    rows.push(['DATE', 'JOUR', 'DEMI-JOURNÉE', 'BINÔMES', 'ZONE', 'VÉHICULE', 'MISSION', 'RÉUNION', 'COMMENTAIRES']);
 
     // Data rows
     data.forEach(entry => {
@@ -109,10 +109,10 @@ export class ExcelExportService {
         entry.jour,
         entry.demiJournee === 'MATIN' ? 'Matin' : 'Après-midi',
         entry.binomes,
-        entry.zone || '',
-        entry.reunion || '',
+        entry.zoneName || '',
+        entry.vehicule ? 'OUI' : 'NON',
         entry.mission || '',
-        entry.voiture || '',
+        entry.reunion || '',
         entry.commentaires || ''
       ]);
     });
@@ -126,10 +126,10 @@ export class ExcelExportService {
       { wch: 12 },  // Jour
       { wch: 14 },  // Demi-journée
       { wch: 28 },  // Binômes
-      { wch: 10 },  // Zone
-      { wch: 12 },  // Ecole
+      { wch: 20 },  // Zone
+      { wch: 10 },  // Véhicule
       { wch: 18 },  // Mission
-      { wch: 12 },  // Voiture
+      { wch: 18 },  // Réunion
       { wch: 25 }   // Commentaires
     ];
 
@@ -150,7 +150,7 @@ export class ExcelExportService {
     const rows: any[] = [];
 
     // Header row
-    rows.push(['Nom', 'Statut', 'Zones Habituelles', 'Indications Spéciales', 'Disponibilités']);
+    rows.push(['Nom', 'Type Contrat', 'Statut', 'Indications Spéciales', 'Disponibilités']);
 
     // Data rows
     agents.forEach(agent => {
@@ -161,8 +161,8 @@ export class ExcelExportService {
 
       rows.push([
         agent.nom,
+        agent.typeContrat || 'TEMPS_PLEIN',
         agent.actif ? 'Actif' : 'Inactif',
-        agent.zonesHabituelles?.join(', ') || '',
         agent.indicationsSpeciales || '',
         disponibilites
       ]);
@@ -173,10 +173,10 @@ export class ExcelExportService {
 
     // Set column widths
     ws['!cols'] = [
-      { wch: 20 },  // Nom
+      { wch: 15 },  // Nom
+      { wch: 15 },  // Type Contrat
       { wch: 10 },  // Statut
-      { wch: 20 },  // Zones
-      { wch: 25 },  // Indications
+      { wch: 30 },  // Indications
       { wch: 50 }   // Disponibilités
     ];
 
@@ -197,24 +197,24 @@ export class ExcelExportService {
     // Agents sheet
     const agents = this.dataService.getAgents();
     const agentsData = [
-      ['Nom', 'Statut', 'Zones Habituelles', 'Indications Spéciales']
+      ['Nom', 'Type Contrat', 'Statut', 'Indications Spéciales']
     ];
     agents.forEach(agent => {
       agentsData.push([
         agent.nom,
+        agent.typeContrat || 'TEMPS_PLEIN',
         agent.actif ? 'Actif' : 'Inactif',
-        agent.zonesHabituelles?.join(', ') || '',
         agent.indicationsSpeciales || ''
       ]);
     });
     const wsAgents = XLSX.utils.aoa_to_sheet(agentsData);
-    wsAgents['!cols'] = [{ wch: 20 }, { wch: 10 }, { wch: 20 }, { wch: 30 }];
+    wsAgents['!cols'] = [{ wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 30 }];
     XLSX.utils.book_append_sheet(wb, wsAgents, 'Agents');
 
     // Historique sheet
     const historique = this.dataService.getHistorique();
     const historiqueData = [
-      ['Date', 'Jour', 'Demi-journée', 'Binômes', 'Zone', 'Mission', 'Commentaires']
+      ['Date', 'Jour', 'Demi-journée', 'Binômes', 'Zone', 'Véhicule', 'Mission', 'Commentaires']
     ];
     historique.forEach(entry => {
       historiqueData.push([
@@ -222,13 +222,14 @@ export class ExcelExportService {
         entry.jour,
         entry.demiJournee === 'MATIN' ? 'Matin' : 'Après-midi',
         entry.binomes,
-        entry.zone || '',
+        entry.zoneName || '',
+        entry.vehicule ? 'OUI' : 'NON',
         entry.mission || '',
         entry.commentaires || ''
       ]);
     });
     const wsHistorique = XLSX.utils.aoa_to_sheet(historiqueData);
-    wsHistorique['!cols'] = [{ wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 30 }, { wch: 10 }, { wch: 20 }, { wch: 25 }];
+    wsHistorique['!cols'] = [{ wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 25 }, { wch: 20 }, { wch: 10 }, { wch: 18 }, { wch: 25 }];
     XLSX.utils.book_append_sheet(wb, wsHistorique, 'Historique');
 
     // Download file

@@ -2,7 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { DataService } from '../../services/data.service';
-import { Agent, JourSemaine, DemiJournee, JOURS_SEMAINE } from '../../models/agent.model';
+import { Agent, JourSemaine, DemiJournee, JOURS_SEMAINE, JOURS_TRAVAIL, TypeContrat, TYPE_CONTRAT_LABELS } from '../../models/agent.model';
 
 @Component({
   selector: 'app-staff',
@@ -12,7 +12,7 @@ import { Agent, JourSemaine, DemiJournee, JOURS_SEMAINE } from '../../models/age
     <div class="container">
       <div class="card">
         <div class="card-header">
-          <h2>Gestion du Staff</h2>
+          <h2>Disponibilités des Agents</h2>
           <button class="btn btn-primary" (click)="ouvrirModalAjout()">
             Ajouter un Agent
           </button>
@@ -23,9 +23,9 @@ import { Agent, JourSemaine, DemiJournee, JOURS_SEMAINE } from '../../models/age
             <thead>
               <tr>
                 <th>Nom</th>
+                <th>Type Contrat</th>
                 <th>Statut</th>
-                <th>Zones Habituelles</th>
-                <th>Indications Spéciales</th>
+                <th>Indications</th>
                 <th>Disponibilités</th>
                 <th>Actions</th>
               </tr>
@@ -34,11 +34,13 @@ import { Agent, JourSemaine, DemiJournee, JOURS_SEMAINE } from '../../models/age
               <tr *ngFor="let agent of agents()">
                 <td><strong>{{ agent.nom }}</strong></td>
                 <td>
+                  <span class="badge badge-info">{{ getTypeContratLabel(agent.typeContrat) }}</span>
+                </td>
+                <td>
                   <span [class]="'badge ' + (agent.actif ? 'badge-success' : 'badge-danger')">
                     {{ agent.actif ? 'Actif' : 'Inactif' }}
                   </span>
                 </td>
-                <td>{{ agent.zonesHabituelles?.join(', ') || '-' }}</td>
                 <td>{{ agent.indicationsSpeciales || '-' }}</td>
                 <td>
                   <button class="btn btn-secondary btn-sm" (click)="voirDisponibilites(agent)">
@@ -72,34 +74,38 @@ import { Agent, JourSemaine, DemiJournee, JOURS_SEMAINE } from '../../models/age
         </div>
         <form [formGroup]="agentForm" (ngSubmit)="sauvegarderAgent()">
           <div class="form-group">
-            <label class="form-label">Nom *</label>
-            <input type="text" formControlName="nom" class="form-control" />
+            <label class="form-label">Nom / Initiales *</label>
+            <input type="text" formControlName="nom" class="form-control" placeholder="Ex: AA, BL, SC..." />
           </div>
 
-          <div class="form-group">
-            <label class="form-label">Zones Habituelles (séparées par des virgules)</label>
-            <input type="text" formControlName="zonesHabituelles" class="form-control" 
-                   placeholder="Zone A, Zone B, Zone C" />
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Type de contrat</label>
+              <select formControlName="typeContrat" class="form-control">
+                <option [value]="TypeContrat.TEMPS_PLEIN">Temps plein</option>
+                <option [value]="TypeContrat.MI_TEMPS">Mi-temps</option>
+                <option [value]="TypeContrat.TEMPS_PARTIEL">Temps partiel</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Statut</label>
+              <select formControlName="actif" class="form-control">
+                <option [ngValue]="true">Actif</option>
+                <option [ngValue]="false">Inactif</option>
+              </select>
+            </div>
           </div>
 
           <div class="form-group">
             <label class="form-label">Indications Spéciales</label>
-            <textarea formControlName="indicationsSpeciales" class="form-control" rows="3"
-                      placeholder="Mi-temps, congés, absences, etc."></textarea>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Statut</label>
-            <select formControlName="actif" class="form-control">
-              <option [value]="true">Actif</option>
-              <option [value]="false">Inactif</option>
-            </select>
+            <textarea formControlName="indicationsSpeciales" class="form-control" rows="2"
+                      placeholder="Ex: Pas dispo mercredi AM, mi-temps..."></textarea>
           </div>
 
           <div class="form-group">
             <label class="form-label">Disponibilités</label>
             <div class="disponibilites-grid">
-              <div *ngFor="let jour of JOURS_SEMAINE" class="jour-dispo">
+              <div *ngFor="let jour of JOURS_TRAVAIL" class="jour-dispo">
                 <strong>{{ jour }}</strong>
                 <div class="checkbox-group">
                   <label class="checkbox-item">
@@ -177,12 +183,8 @@ import { Agent, JourSemaine, DemiJournee, JOURS_SEMAINE } from '../../models/age
     }
     
     @keyframes fadeIn {
-      from {
-        opacity: 0;
-      }
-      to {
-        opacity: 1;
-      }
+      from { opacity: 0; }
+      to { opacity: 1; }
     }
     
     .modal-content {
@@ -192,20 +194,13 @@ import { Agent, JourSemaine, DemiJournee, JOURS_SEMAINE } from '../../models/age
       width: 100%;
       max-height: 90vh;
       overflow-y: auto;
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
       animation: slideUp 0.3s ease;
-      border: 1px solid #e2e8f0;
     }
     
     @keyframes slideUp {
-      from {
-        transform: translateY(20px);
-        opacity: 0;
-      }
-      to {
-        transform: translateY(0);
-        opacity: 1;
-      }
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
     }
     
     .modal-header {
@@ -229,59 +224,50 @@ import { Agent, JourSemaine, DemiJournee, JOURS_SEMAINE } from '../../models/age
       font-size: 24px;
       cursor: pointer;
       color: #64748b;
-      line-height: 1;
-      padding: 0;
       width: 36px;
       height: 36px;
       border-radius: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: all 0.2s ease;
-    }
-    
-    .btn-close:hover {
-      background: #e2e8f0;
-      color: #1e293b;
     }
     
     .modal-content form {
       padding: 24px;
     }
     
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    
     .disponibilites-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-      gap: 16px;
-      margin-top: 16px;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
     }
     
     .jour-dispo {
-      padding: 16px;
+      padding: 12px;
       background: #f8fafc;
-      border-radius: 10px;
+      border-radius: 8px;
       border: 1px solid #e2e8f0;
-      transition: all 0.2s ease;
-    }
-    
-    .jour-dispo:hover {
-      background: #f1f5f9;
-      border-color: #cbd5e1;
     }
     
     .jour-dispo strong {
       display: block;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
       color: #1e293b;
-      font-size: 14px;
-      font-weight: 600;
+      font-size: 13px;
     }
     
     .modal-actions {
       display: flex;
       justify-content: flex-end;
       gap: 12px;
-      margin-top: 32px;
+      margin-top: 24px;
       padding-top: 24px;
       border-top: 2px solid #e2e8f0;
     }
@@ -297,11 +283,13 @@ export class StaffComponent {
   disponibilitesTemporaires: Map<string, boolean> = new Map();
 
   readonly JOURS_SEMAINE = JOURS_SEMAINE;
+  readonly JOURS_TRAVAIL = JOURS_TRAVAIL;
   readonly DemiJournee = DemiJournee;
+  readonly TypeContrat = TypeContrat;
 
   agentForm: FormGroup = this.fb.group({
     nom: ['', Validators.required],
-    zonesHabituelles: [''],
+    typeContrat: [TypeContrat.TEMPS_PLEIN],
     indicationsSpeciales: [''],
     actif: [true]
   });
@@ -314,10 +302,22 @@ export class StaffComponent {
     this.agents.set(this.dataService.getAgents());
   }
 
+  getTypeContratLabel(type: TypeContrat): string {
+    return TYPE_CONTRAT_LABELS[type] || type;
+  }
+
   ouvrirModalAjout(): void {
     this.agentEnEdition = null;
     this.disponibilitesTemporaires.clear();
-    this.agentForm.reset({ actif: true });
+    // Set all days as available by default
+    for (const jour of JOURS_TRAVAIL) {
+      this.disponibilitesTemporaires.set(`${jour}-${DemiJournee.MATIN}`, true);
+      this.disponibilitesTemporaires.set(`${jour}-${DemiJournee.APRES_MIDI}`, true);
+    }
+    this.agentForm.reset({ 
+      actif: true,
+      typeContrat: TypeContrat.TEMPS_PLEIN
+    });
     this.afficherModal = true;
   }
 
@@ -333,7 +333,7 @@ export class StaffComponent {
 
     this.agentForm.patchValue({
       nom: agent.nom,
-      zonesHabituelles: agent.zonesHabituelles?.join(', ') || '',
+      typeContrat: agent.typeContrat,
       indicationsSpeciales: agent.indicationsSpeciales || '',
       actif: agent.actif
     });
@@ -354,7 +354,7 @@ export class StaffComponent {
     if (!this.agentForm.valid) return;
 
     const formValue = this.agentForm.value;
-    const disponibilites = JOURS_SEMAINE.flatMap(jour => [
+    const disponibilites = JOURS_TRAVAIL.flatMap(jour => [
       {
         jour,
         demiJournee: DemiJournee.MATIN,
@@ -370,9 +370,7 @@ export class StaffComponent {
     const agent: Agent = {
       id: this.agentEnEdition?.id || this.generateId(),
       nom: formValue.nom,
-      zonesHabituelles: formValue.zonesHabituelles
-        ? formValue.zonesHabituelles.split(',').map((z: string) => z.trim()).filter((z: string) => z)
-        : [],
+      typeContrat: formValue.typeContrat,
       indicationsSpeciales: formValue.indicationsSpeciales || '',
       actif: formValue.actif,
       disponibilites
@@ -406,7 +404,7 @@ export class StaffComponent {
       );
       return dispo?.disponible ?? false;
     }
-    return false;
+    return true; // Default to available for new agents
   }
 
   toggleDisponibilite(jour: JourSemaine, demiJournee: DemiJournee, event: Event): void {
@@ -416,10 +414,9 @@ export class StaffComponent {
   }
 
   voirDisponibilites(agent: Agent): void {
-    // Simple alert for now, could be enhanced with a modal
     const dispoText = agent.disponibilites
       .filter(d => d.disponible)
-      .map(d => `${d.jour} ${d.demiJournee}`)
+      .map(d => `${d.jour} ${d.demiJournee === 'MATIN' ? 'Matin' : 'AM'}`)
       .join('\n');
     alert(`Disponibilités de ${agent.nom}:\n\n${dispoText || 'Aucune disponibilité'}`);
   }
@@ -428,4 +425,3 @@ export class StaffComponent {
     return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
   }
 }
-
