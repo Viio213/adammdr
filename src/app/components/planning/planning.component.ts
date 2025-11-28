@@ -34,16 +34,16 @@ import { JourSemaine, DemiJournee, JOURS_SEMAINE } from '../../models/agent.mode
           </div>
         </div>
 
-        <div *ngIf="planningActuel; else noPlanning" class="planning-container">
+        <div *ngIf="planningActuel(); else noPlanning" class="planning-container">
           <div class="planning-info">
             <p>
               <strong>Semaine du</strong> 
-              {{ formatDate(planningActuel.dateDebut) }} 
+              {{ formatDate(planningActuel()!.dateDebut) }} 
               <strong>au</strong> 
-              {{ formatDate(planningActuel.dateFin) }}
+              {{ formatDate(planningActuel()!.dateFin) }}
             </p>
             <p class="text-muted">
-              Généré le {{ formatDate(planningActuel.dateGeneration) }}
+              Généré le {{ formatDate(planningActuel()!.dateGeneration) }}
             </p>
           </div>
 

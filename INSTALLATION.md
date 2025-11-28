@@ -58,3 +58,4 @@ En cas de problème :
 - Assurez-vous que localStorage est activé dans votre navigateur
 - Vérifiez que vous avez au moins 2 agents actifs pour générer un planning
 
+

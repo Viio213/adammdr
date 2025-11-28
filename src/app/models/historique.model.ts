@@ -14,3 +14,4 @@ export interface HistoriqueEntry {
   planningId: string; // Reference to the planning that generated this entry
 }
 
+

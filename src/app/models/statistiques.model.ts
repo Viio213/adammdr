@@ -23,3 +23,4 @@ export interface StatistiqueAgent {
   partenairesFrequents: { [nom: string]: number };
 }
 
+
