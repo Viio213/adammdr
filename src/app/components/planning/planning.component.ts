@@ -5,17 +5,9 @@ import { PlanningGeneratorService } from '../../services/planning-generator.serv
 import { DataService } from '../../services/data.service';
 import { ExcelExportService } from '../../services/excel-export.service';
 import { AuthService } from '../../services/auth.service';
-import { PlanningSemaine, Groupe } from '../../models/planning.model';
-import { JourSemaine, DemiJournee } from '../../models/agent.model';
-
-interface DisplayRow {
-  type: 'jour' | 'demijournee' | 'groupe' | 'empty';
-  jour: JourSemaine;
-  demiJournee?: DemiJournee;
-  groupe?: Groupe;
-  showJour?: boolean;
-  jourRowspan?: number;
-}
+import { PlanningSemaine, PlanningJour, Groupe } from '../../models/planning.model';
+import { JourSemaine, DemiJournee, JOURS_TRAVAIL } from '../../models/agent.model';
+import { ZONES } from '../../models/zone.model';
 
 @Component({
   selector: 'app-planning',
@@ -28,19 +20,25 @@ interface DisplayRow {
           <h2>Planning de la Semaine</h2>
           <div class="header-actions">
             <input 
-              *ngIf="canGeneratePlanning"
+              *ngIf="canEdit"
               type="date" 
               [(ngModel)]="dateDebutSemaine" 
               class="date-input"
             />
             <button 
-              *ngIf="canGeneratePlanning"
+              *ngIf="canEdit"
               class="btn btn-primary" 
-              (click)="genererPlanning()">
-              Générer Planning
+              (click)="genererPlanningHebdo()">
+              Générer Planning Hebdo
             </button>
             <button 
+              *ngIf="canEdit && planningActuel() && !planningActuel()!.isConfirmed"
               class="btn btn-success" 
+              (click)="confirmerPlanning()">
+              ✓ Confirmer le Planning
+            </button>
+            <button 
+              class="btn btn-secondary" 
               (click)="exporterExcel()" 
               [disabled]="!planningActuel()">
               Export Excel
@@ -54,6 +52,12 @@ interface DisplayRow {
             <strong>{{ formatDateShort(planningActuel()!.dateDebut) }}</strong>
             <span>au</span>
             <strong>{{ formatDateShort(planningActuel()!.dateFin) }}</strong>
+            <span *ngIf="planningActuel()!.isConfirmed" class="badge badge-success">
+              ✓ Confirmé
+            </span>
+            <span *ngIf="!planningActuel()!.isConfirmed" class="badge badge-warning">
+              Brouillon
+            </span>
           </div>
 
           <div class="table-wrapper">
@@ -61,73 +65,245 @@ interface DisplayRow {
               <thead>
                 <tr>
                   <th class="th-jour">JOUR</th>
+                  <th class="th-periode">Matin</th>
+                  <th class="th-periode">Après-midi</th>
                   <th class="th-binomes">Binômes</th>
                   <th class="th-zones">Zones</th>
-                  <th class="th-ecole">Ecole</th>
+                  <th class="th-vehicule">Véhicule</th>
                   <th class="th-mission">Mission</th>
-                  <th class="th-voiture">Voiture</th>
+                  <th class="th-reunion">Réunion</th>
                   <th class="th-commentaires">Commentaires</th>
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let row of displayRows()" [ngClass]="getRowClass(row)">
-                  <!-- Jour cell -->
-                  <td *ngIf="row.showJour" 
-                      class="td-jour" 
-                      [attr.rowspan]="row.jourRowspan">
-                    {{ row.jour }}
-                  </td>
-                  
-                  <!-- Demi-journée header row -->
-                  <ng-container *ngIf="row.type === 'demijournee'">
-                    <td class="td-demijournee">{{ row.demiJournee === 'MATIN' ? 'Matin' : 'Après-midi' }}</td>
-                    <td colspan="5" class="td-select-empty">
-                      <select class="mini-select"><option>--</option></select>
-                    </td>
-                  </ng-container>
-                  
-                  <!-- Groupe row -->
-                  <ng-container *ngIf="row.type === 'groupe' && row.groupe">
-                    <td class="td-binomes">
-                      <div class="agent-initials">{{ getAgentsInitiales(row.groupe.agents) }}</div>
-                    </td>
-                    <td class="td-zones">
-                      <ng-container *ngIf="canGeneratePlanning; else readonlyZone">
-                        <select [(ngModel)]="row.groupe.zone" class="zone-dropdown" [class.filled]="row.groupe.zone">
-                          <option value="">Zone</option>
-                          <option value="Zone 1">Zone 1</option>
-                          <option value="Zone 2">Zone 2</option>
-                          <option value="Zone 3">Zone 3</option>
-                          <option value="Zone 4">Zone 4</option>
+                <ng-container *ngFor="let jourPlanning of planningActuel()!.jours">
+                  <!-- Morning rows -->
+                  <ng-container *ngFor="let groupe of jourPlanning.matin.groupes; let first = first; let i = index">
+                    <tr class="row-groupe" [class.row-first]="first">
+                      <!-- Day cell (rowspan for all morning+afternoon groups) -->
+                      <td *ngIf="first" 
+                          class="td-jour" 
+                          [attr.rowspan]="getJourRowspan(jourPlanning)">
+                        <div class="jour-content">
+                          <span class="jour-nom">{{ jourPlanning.jour }}</span>
+                          <span class="jour-date">{{ formatDateShort(jourPlanning.date) }}</span>
+                          <button 
+                            *ngIf="canEdit && !planningActuel()!.isConfirmed"
+                            class="btn btn-sm btn-generate"
+                            (click)="genererJour(jourPlanning.jour)">
+                            Générer
+                          </button>
+                        </div>
+                      </td>
+                      
+                      <!-- Matin indicator (rowspan for morning groups) -->
+                      <td *ngIf="first" 
+                          class="td-periode td-matin"
+                          [attr.rowspan]="jourPlanning.matin.groupes.length || 1">
+                        Matin
+                      </td>
+                      
+                      <!-- Empty afternoon cell for morning rows -->
+                      <td *ngIf="first" 
+                          class="td-periode td-empty-periode"
+                          [attr.rowspan]="jourPlanning.matin.groupes.length || 1">
+                      </td>
+                      
+                      <!-- Binômes -->
+                      <td class="td-binomes">
+                        <div class="binome-names">{{ getGroupeNoms(groupe) }}</div>
+                      </td>
+                      
+                      <!-- Zone -->
+                      <td class="td-zones">
+                        <select 
+                          *ngIf="canEdit && !planningActuel()!.isConfirmed"
+                          [(ngModel)]="groupe.zoneId" 
+                          class="zone-select"
+                          (change)="onZoneChange(groupe)">
+                          <option value="">-</option>
+                          <option *ngFor="let zone of zones" [value]="zone.id">
+                            {{ zone.nom }}
+                          </option>
                         </select>
-                      </ng-container>
-                      <ng-template #readonlyZone>
-                        <span class="readonly-value">{{ row.groupe.zone || '-' }}</span>
-                      </ng-template>
-                    </td>
-                    <td class="td-ecole">
-                      <input *ngIf="canGeneratePlanning" type="text" [(ngModel)]="row.groupe.mission" class="cell-input small" />
-                      <span *ngIf="!canGeneratePlanning" class="readonly-value">{{ row.groupe.mission || '-' }}</span>
-                    </td>
-                    <td class="td-mission">
-                      <input *ngIf="canGeneratePlanning" type="text" [(ngModel)]="row.groupe.reunion" class="cell-input" />
-                      <span *ngIf="!canGeneratePlanning" class="readonly-value">{{ row.groupe.reunion || '-' }}</span>
-                    </td>
-                    <td class="td-voiture">
-                      <input *ngIf="canGeneratePlanning" type="text" [(ngModel)]="row.groupe.voiture" class="cell-input small" />
-                      <span *ngIf="!canGeneratePlanning" class="readonly-value">{{ row.groupe.voiture || '-' }}</span>
-                    </td>
-                    <td class="td-commentaires">
-                      <input *ngIf="canGeneratePlanning" type="text" [(ngModel)]="row.groupe.commentaires" class="cell-input" />
-                      <span *ngIf="!canGeneratePlanning" class="readonly-value">{{ row.groupe.commentaires || '-' }}</span>
-                    </td>
+                        <span *ngIf="!canEdit || planningActuel()!.isConfirmed" class="readonly-value">
+                          {{ getZoneName(groupe.zoneId) }}
+                        </span>
+                      </td>
+                      
+                      <!-- Véhicule -->
+                      <td class="td-vehicule">
+                        <label class="checkbox-vehicule">
+                          <input 
+                            type="checkbox" 
+                            [(ngModel)]="groupe.vehicule"
+                            [disabled]="!canEdit || planningActuel()!.isConfirmed"
+                          />
+                          <span class="checkmark"></span>
+                        </label>
+                      </td>
+                      
+                      <!-- Mission -->
+                      <td class="td-mission">
+                        <input 
+                          *ngIf="canEdit && !planningActuel()!.isConfirmed"
+                          type="text" 
+                          [(ngModel)]="groupe.mission" 
+                          class="cell-input"
+                          placeholder="Mission..."
+                        />
+                        <span *ngIf="!canEdit || planningActuel()!.isConfirmed" class="readonly-value">
+                          {{ groupe.mission || '-' }}
+                        </span>
+                      </td>
+                      
+                      <!-- Réunion -->
+                      <td class="td-reunion">
+                        <input 
+                          *ngIf="canEdit && !planningActuel()!.isConfirmed"
+                          type="text" 
+                          [(ngModel)]="groupe.reunion" 
+                          class="cell-input"
+                          placeholder="Réunion..."
+                        />
+                        <span *ngIf="!canEdit || planningActuel()!.isConfirmed" class="readonly-value">
+                          {{ groupe.reunion || '-' }}
+                        </span>
+                      </td>
+                      
+                      <!-- Commentaires -->
+                      <td class="td-commentaires">
+                        <input 
+                          *ngIf="canEdit && !planningActuel()!.isConfirmed"
+                          type="text" 
+                          [(ngModel)]="groupe.commentaires" 
+                          class="cell-input"
+                          placeholder="Commentaire..."
+                        />
+                        <span *ngIf="!canEdit || planningActuel()!.isConfirmed" class="readonly-value">
+                          {{ groupe.commentaires || '-' }}
+                        </span>
+                      </td>
+                    </tr>
                   </ng-container>
                   
-                  <!-- Empty row -->
-                  <ng-container *ngIf="row.type === 'empty'">
-                    <td class="td-empty" colspan="6">Aucun binôme</td>
+                  <!-- Empty morning row if no groups -->
+                  <tr *ngIf="jourPlanning.matin.groupes.length === 0" class="row-empty">
+                    <td class="td-jour" [attr.rowspan]="getJourRowspan(jourPlanning)">
+                      <div class="jour-content">
+                        <span class="jour-nom">{{ jourPlanning.jour }}</span>
+                        <span class="jour-date">{{ formatDateShort(jourPlanning.date) }}</span>
+                        <button 
+                          *ngIf="canEdit && !planningActuel()!.isConfirmed"
+                          class="btn btn-sm btn-generate"
+                          (click)="genererJour(jourPlanning.jour)">
+                          Générer
+                        </button>
+                      </div>
+                    </td>
+                    <td class="td-periode td-matin">Matin</td>
+                    <td class="td-periode td-empty-periode"></td>
+                    <td colspan="6" class="td-no-groupe">Aucun binôme</td>
+                  </tr>
+                  
+                  <!-- Afternoon rows -->
+                  <ng-container *ngFor="let groupe of jourPlanning.apresMidi.groupes; let first = first">
+                    <tr class="row-groupe row-aprem" [class.row-first]="first">
+                      <!-- Matin empty for afternoon -->
+                      <td *ngIf="first" 
+                          class="td-periode td-empty-periode"
+                          [attr.rowspan]="jourPlanning.apresMidi.groupes.length || 1">
+                      </td>
+                      
+                      <!-- Après-midi indicator -->
+                      <td *ngIf="first" 
+                          class="td-periode td-aprem"
+                          [attr.rowspan]="jourPlanning.apresMidi.groupes.length || 1">
+                        Après-midi
+                      </td>
+                      
+                      <!-- Binômes -->
+                      <td class="td-binomes">
+                        <div class="binome-names">{{ getGroupeNoms(groupe) }}</div>
+                      </td>
+                      
+                      <!-- Zone -->
+                      <td class="td-zones">
+                        <select 
+                          *ngIf="canEdit && !planningActuel()!.isConfirmed"
+                          [(ngModel)]="groupe.zoneId" 
+                          class="zone-select"
+                          (change)="onZoneChange(groupe)">
+                          <option value="">-</option>
+                          <option *ngFor="let zone of zones" [value]="zone.id">
+                            {{ zone.nom }}
+                          </option>
+                        </select>
+                        <span *ngIf="!canEdit || planningActuel()!.isConfirmed" class="readonly-value">
+                          {{ getZoneName(groupe.zoneId) }}
+                        </span>
+                      </td>
+                      
+                      <!-- Véhicule -->
+                      <td class="td-vehicule">
+                        <label class="checkbox-vehicule">
+                          <input 
+                            type="checkbox" 
+                            [(ngModel)]="groupe.vehicule"
+                            [disabled]="!canEdit || planningActuel()!.isConfirmed"
+                          />
+                          <span class="checkmark"></span>
+                        </label>
+                      </td>
+                      
+                      <!-- Mission -->
+                      <td class="td-mission">
+                        <input 
+                          *ngIf="canEdit && !planningActuel()!.isConfirmed"
+                          type="text" 
+                          [(ngModel)]="groupe.mission" 
+                          class="cell-input"
+                        />
+                        <span *ngIf="!canEdit || planningActuel()!.isConfirmed" class="readonly-value">
+                          {{ groupe.mission || '-' }}
+                        </span>
+                      </td>
+                      
+                      <!-- Réunion -->
+                      <td class="td-reunion">
+                        <input 
+                          *ngIf="canEdit && !planningActuel()!.isConfirmed"
+                          type="text" 
+                          [(ngModel)]="groupe.reunion" 
+                          class="cell-input"
+                        />
+                        <span *ngIf="!canEdit || planningActuel()!.isConfirmed" class="readonly-value">
+                          {{ groupe.reunion || '-' }}
+                        </span>
+                      </td>
+                      
+                      <!-- Commentaires -->
+                      <td class="td-commentaires">
+                        <input 
+                          *ngIf="canEdit && !planningActuel()!.isConfirmed"
+                          type="text" 
+                          [(ngModel)]="groupe.commentaires" 
+                          class="cell-input"
+                        />
+                        <span *ngIf="!canEdit || planningActuel()!.isConfirmed" class="readonly-value">
+                          {{ groupe.commentaires || '-' }}
+                        </span>
+                      </td>
+                    </tr>
                   </ng-container>
-                </tr>
+                  
+                  <!-- Empty afternoon row if no groups -->
+                  <tr *ngIf="jourPlanning.apresMidi.groupes.length === 0" class="row-empty row-aprem">
+                    <td class="td-periode td-empty-periode"></td>
+                    <td class="td-periode td-aprem">Après-midi</td>
+                    <td colspan="6" class="td-no-groupe">Aucun binôme</td>
+                  </tr>
+                </ng-container>
               </tbody>
             </table>
           </div>
@@ -136,7 +312,7 @@ interface DisplayRow {
         <ng-template #noPlanning>
           <div class="no-planning">
             <p>Aucun planning généré</p>
-            <span>Sélectionnez une date et cliquez sur "Générer Planning"</span>
+            <span>Sélectionnez une date et cliquez sur "Générer Planning Hebdo"</span>
           </div>
         </ng-template>
       </div>
@@ -145,14 +321,14 @@ interface DisplayRow {
   styles: [`
     .page-container {
       padding: 24px;
-      max-width: 1400px;
+      max-width: 1600px;
       margin: 0 auto;
     }
     
     .card {
       background: #fff;
-      border-radius: 8px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
       padding: 24px;
     }
     
@@ -162,49 +338,71 @@ interface DisplayRow {
       align-items: center;
       margin-bottom: 24px;
       padding-bottom: 16px;
-      border-bottom: 1px solid #eee;
+      border-bottom: 2px solid #e2e8f0;
       flex-wrap: wrap;
       gap: 16px;
     }
     
     .card-header h2 {
       margin: 0;
-      font-size: 22px;
+      font-size: 24px;
       font-weight: 700;
-      color: #2d5016;
+      color: #1e293b;
     }
     
     .header-actions {
       display: flex;
       gap: 12px;
       align-items: center;
+      flex-wrap: wrap;
     }
     
     .date-input {
       padding: 10px 14px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
       font-size: 14px;
     }
     
     .btn {
-      padding: 10px 24px;
+      padding: 10px 20px;
       border: none;
-      border-radius: 6px;
+      border-radius: 8px;
       font-size: 14px;
       font-weight: 600;
       cursor: pointer;
-      transition: background 0.2s;
+      transition: all 0.2s;
     }
     
     .btn-primary {
-      background: #2d5016;
+      background: linear-gradient(135deg, #2d5016 0%, #3d6b1e 100%);
       color: #fff;
     }
     
-    .btn-primary:hover {
-      background: #1f3a0f;
+    .btn-primary:hover { background: #1f3a0f; }
+    
+    .btn-success {
+      background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+      color: #fff;
     }
+    
+    .btn-secondary {
+      background: #64748b;
+      color: #fff;
+    }
+    
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 11px;
+    }
+    
+    .btn-generate {
+      background: #3b82f6;
+      color: #fff;
+      margin-top: 8px;
+    }
+    
+    .btn-generate:hover { background: #2563eb; }
     
     .planning-info {
       display: flex;
@@ -212,18 +410,33 @@ interface DisplayRow {
       gap: 8px;
       margin-bottom: 16px;
       font-size: 14px;
-      color: #666;
+      color: #64748b;
     }
     
-    .planning-info strong {
-      color: #333;
+    .planning-info strong { color: #1e293b; }
+    
+    .badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 12px;
     }
     
-    /* Table */
+    .badge-success {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    
+    .badge-warning {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    
     .table-wrapper {
       overflow-x: auto;
       border: 2px solid #2d5016;
-      border-radius: 6px;
+      border-radius: 10px;
     }
     
     .planning-table {
@@ -232,9 +445,8 @@ interface DisplayRow {
       font-size: 13px;
     }
     
-    /* Header */
     thead tr {
-      background: #2d5016;
+      background: linear-gradient(135deg, #2d5016 0%, #3d6b1e 100%);
     }
     
     thead th {
@@ -243,178 +455,160 @@ interface DisplayRow {
       text-align: center;
       font-weight: 600;
       font-size: 12px;
-      letter-spacing: 0.3px;
-      border-right: 1px solid #3a6619;
+      letter-spacing: 0.5px;
+      border-right: 1px solid rgba(255,255,255,0.2);
     }
     
-    thead th:last-child {
-      border-right: none;
-    }
+    thead th:last-child { border-right: none; }
     
-    .th-jour { width: 100px; }
-    .th-binomes { width: 90px; }
-    .th-zones { width: 100px; }
-    .th-ecole { width: 60px; }
-    .th-mission { min-width: 150px; }
-    .th-voiture { width: 80px; }
+    .th-jour { width: 120px; }
+    .th-periode { width: 80px; }
+    .th-binomes { width: 120px; }
+    .th-zones { width: 180px; }
+    .th-vehicule { width: 70px; }
+    .th-mission { min-width: 120px; }
+    .th-reunion { min-width: 120px; }
     .th-commentaires { min-width: 150px; }
     
-    /* Jour cell */
     .td-jour {
-      background: #8bc34a;
+      background: linear-gradient(135deg, #8bc34a 0%, #9ccc65 100%);
       color: #1b3409;
       font-weight: 700;
-      font-size: 14px;
       text-align: center;
-      vertical-align: middle;
-      border-right: 2px solid #7cb342;
+      vertical-align: top;
       padding: 12px 8px;
+      border-right: 2px solid #7cb342;
     }
     
-    /* Demi-journée row */
-    .row-demijournee {
-      background: #dcedc8;
+    .jour-content {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      align-items: center;
     }
     
-    .td-demijournee {
+    .jour-nom {
+      font-size: 14px;
+      font-weight: 700;
+    }
+    
+    .jour-date {
+      font-size: 11px;
+      opacity: 0.8;
+    }
+    
+    .td-periode {
       background: #c5e1a5;
       color: #33691e;
       font-weight: 600;
-      padding: 10px 14px;
-      font-size: 13px;
+      padding: 10px 8px;
+      text-align: center;
+      font-size: 12px;
       border-right: 1px solid #aed581;
       border-bottom: 1px solid #aed581;
     }
     
-    .td-select-empty {
-      background: #dcedc8;
-      padding: 8px;
-      border-bottom: 1px solid #c5e1a5;
-    }
-    
-    .mini-select {
-      padding: 5px 10px;
-      border: 1px solid #aed581;
-      border-radius: 4px;
-      background: #fff;
-      font-size: 12px;
-      color: #666;
-    }
-    
-    /* Groupe row */
-    .row-groupe {
-      background: #fff;
-    }
-    
-    .row-groupe:hover {
-      background: #f5f5f5;
-    }
-    
-    .row-groupe.trinome {
-      background: #fffde7;
-    }
-    
-    .row-groupe.trinome:hover {
-      background: #fff9c4;
-    }
+    .td-matin { background: #dcedc8; }
+    .td-aprem { background: #c5e1a5; }
+    .td-empty-periode { background: #f5f5f5; border-right: 1px solid #e0e0e0; }
     
     .row-groupe td {
       padding: 8px 10px;
       border-right: 1px solid #e0e0e0;
       border-bottom: 1px solid #e0e0e0;
       vertical-align: middle;
+      background: #fff;
     }
     
-    .row-groupe td:last-child {
-      border-right: none;
+    .row-groupe:hover td:not(.td-jour):not(.td-periode) {
+      background: #f8fafc;
     }
     
-    /* Binomes */
+    .row-aprem td:not(.td-jour):not(.td-periode) {
+      background: #fffde7;
+    }
+    
+    .row-aprem:hover td:not(.td-jour):not(.td-periode) {
+      background: #fff9c4;
+    }
+    
     .td-binomes {
       text-align: center;
     }
     
-    .agent-initials {
+    .binome-names {
       font-weight: 600;
-      color: #333;
-      line-height: 1.5;
-      white-space: pre-line;
+      color: #1e293b;
+      line-height: 1.4;
     }
     
-    /* Zone dropdown */
-    .zone-dropdown {
+    .zone-select {
       width: 100%;
-      padding: 7px 10px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      background: #fafafa;
-      font-size: 12px;
-      color: #555;
+      padding: 6px 8px;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 11px;
+      background: #fff;
+    }
+    
+    .zone-select:focus {
+      outline: none;
+      border-color: #3b82f6;
+    }
+    
+    .td-vehicule {
+      text-align: center;
+    }
+    
+    .checkbox-vehicule {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       cursor: pointer;
     }
     
-    .zone-dropdown.filled {
-      background: #e3f2fd;
-      border-color: #64b5f6;
-      color: #1565c0;
-      font-weight: 500;
+    .checkbox-vehicule input {
+      width: 20px;
+      height: 20px;
+      accent-color: #2d5016;
+      cursor: pointer;
     }
     
-    .zone-dropdown:focus {
-      outline: none;
-      border-color: #42a5f5;
-    }
-    
-    /* Input cells */
     .cell-input {
       width: 100%;
-      padding: 7px 10px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
+      padding: 6px 8px;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
       font-size: 12px;
       background: #fff;
     }
     
     .cell-input:focus {
       outline: none;
-      border-color: #42a5f5;
-      background: #e3f2fd;
+      border-color: #3b82f6;
+      background: #f0f9ff;
     }
     
-    .cell-input.small {
-      width: 50px;
-      text-align: center;
-    }
-    
-    .td-ecole {
-      text-align: center;
-    }
-
     .readonly-value {
-      display: block;
-      padding: 7px 10px;
       font-size: 12px;
-      color: #333;
+      color: #475569;
     }
     
-    /* Empty row */
-    .row-empty {
+    .row-empty td {
       background: #fafafa;
     }
     
-    .td-empty {
-      padding: 16px;
+    .td-no-groupe {
       text-align: center;
-      color: #999;
+      color: #94a3b8;
       font-style: italic;
-      border-bottom: 1px solid #e0e0e0;
+      padding: 16px;
     }
     
-    /* No planning */
     .no-planning {
       text-align: center;
       padding: 80px 20px;
-      color: #888;
+      color: #64748b;
     }
     
     .no-planning p {
@@ -425,26 +619,14 @@ interface DisplayRow {
     
     .no-planning span {
       font-size: 14px;
-      color: #aaa;
+      color: #94a3b8;
     }
     
     @media (max-width: 768px) {
-      .page-container {
-        padding: 12px;
-      }
-      
-      .card-header {
-        flex-direction: column;
-        align-items: stretch;
-      }
-      
-      .header-actions {
-        flex-direction: column;
-      }
-      
-      .date-input, .btn {
-        width: 100%;
-      }
+      .page-container { padding: 12px; }
+      .card-header { flex-direction: column; align-items: stretch; }
+      .header-actions { flex-direction: column; }
+      .date-input, .btn { width: 100%; }
     }
   `]
 })
@@ -454,93 +636,91 @@ export class PlanningComponent {
   private excelExport = inject(ExcelExportService);
   private authService = inject(AuthService);
 
-  canGeneratePlanning = this.authService.hasPermission('canGeneratePlanning');
-
   planningActuel = signal<PlanningSemaine | null>(null);
   dateDebutSemaine = this.getLundiSemaine(new Date()).toISOString().split('T')[0];
   
-  readonly joursActifs: JourSemaine[] = [
-    JourSemaine.LUNDI,
-    JourSemaine.MARDI,
-    JourSemaine.MERCREDI,
-    JourSemaine.JEUDI,
-    JourSemaine.VENDREDI
-  ];
-
-  readonly DemiJournee = DemiJournee;
-
-  displayRows = computed<DisplayRow[]>(() => {
-    const planning = this.planningActuel();
-    if (!planning) return [];
-
-    const rows: DisplayRow[] = [];
-
-    for (const jour of this.joursActifs) {
-      const matinGroupes = this.getGroupesForDemiJournee(planning, jour, DemiJournee.MATIN);
-      const apremGroupes = this.getGroupesForDemiJournee(planning, jour, DemiJournee.APRES_MIDI);
-      
-      const matinRows = Math.max(matinGroupes.length, 1);
-      const apremRows = Math.max(apremGroupes.length, 1);
-      const jourRowspan = 2 + matinRows + apremRows; // 2 demi-journee headers + groupe rows
-
-      // Matin header
-      rows.push({
-        type: 'demijournee',
-        jour,
-        demiJournee: DemiJournee.MATIN,
-        showJour: true,
-        jourRowspan
-      });
-
-      // Matin groupes
-      if (matinGroupes.length > 0) {
-        matinGroupes.forEach(groupe => {
-          rows.push({ type: 'groupe', jour, demiJournee: DemiJournee.MATIN, groupe });
-        });
-      } else {
-        rows.push({ type: 'empty', jour, demiJournee: DemiJournee.MATIN });
-      }
-
-      // Après-midi header
-      rows.push({
-        type: 'demijournee',
-        jour,
-        demiJournee: DemiJournee.APRES_MIDI
-      });
-
-      // Après-midi groupes
-      if (apremGroupes.length > 0) {
-        apremGroupes.forEach(groupe => {
-          rows.push({ type: 'groupe', jour, demiJournee: DemiJournee.APRES_MIDI, groupe });
-        });
-      } else {
-        rows.push({ type: 'empty', jour, demiJournee: DemiJournee.APRES_MIDI });
-      }
-    }
-
-    return rows;
-  });
+  zones = ZONES;
+  canEdit = this.authService.hasPermission('canGeneratePlanning');
 
   constructor() {
     this.chargerPlanningActuel();
   }
 
-  genererPlanning(): void {
+  genererPlanningHebdo(): void {
     const dateDebut = new Date(this.dateDebutSemaine);
     const planning = this.planningGenerator.generatePlanningSemaine(dateDebut);
     
     this.dataService.addPlanning(planning);
+    this.planningActuel.set(planning);
+  }
+
+  genererJour(jour: JourSemaine): void {
+    const planning = this.planningActuel();
+    if (!planning) return;
+
+    const updatedPlanning = this.planningGenerator.regenerateJour(planning, jour);
+    
+    // Update in storage
+    const plannings = this.dataService.getPlannings().map(p => 
+      p.id === updatedPlanning.id ? updatedPlanning : p
+    );
+    this.dataService.plannings.set(plannings);
+    
+    this.planningActuel.set(updatedPlanning);
+  }
+
+  confirmerPlanning(): void {
+    const planning = this.planningActuel();
+    if (!planning || planning.isConfirmed) return;
+
+    if (!confirm('Confirmer ce planning ? Il sera enregistré dans l\'historique et les statistiques.')) {
+      return;
+    }
+
+    // Confirm and save to history
+    this.dataService.confirmPlanning(planning);
+    
+    // Convert to historique entries
     const historiqueEntries = this.planningGenerator.planningToHistorique(planning);
     this.dataService.addHistoriqueEntries(historiqueEntries);
-    
-    this.planningActuel.set(planning);
+
+    // Reload
+    this.planningActuel.set({ ...planning, isConfirmed: true, dateConfirmation: new Date() });
   }
 
   chargerPlanningActuel(): void {
     const planning = this.dataService.getPlanningActuel();
     if (planning) {
       this.planningActuel.set(planning);
-      this.dateDebutSemaine = planning.dateDebut.toISOString().split('T')[0];
+      this.dateDebutSemaine = new Date(planning.dateDebut).toISOString().split('T')[0];
+    }
+  }
+
+  getJourRowspan(jourPlanning: PlanningJour): number {
+    const matinRows = Math.max(jourPlanning.matin.groupes.length, 1);
+    const apremRows = Math.max(jourPlanning.apresMidi.groupes.length, 1);
+    return matinRows + apremRows;
+  }
+
+  getGroupeNoms(groupe: Groupe): string {
+    return groupe.agents.map(a => a.nom).join(' / ');
+  }
+
+  getZoneName(zoneId?: string): string {
+    if (!zoneId) return '-';
+    const zone = ZONES.find(z => z.id === zoneId);
+    return zone ? zone.nom.replace('Zone ', 'Z') : '-';
+  }
+
+  onZoneChange(groupe: Groupe): void {
+    // Auto-select first school from zone
+    if (groupe.zoneId) {
+      const zone = ZONES.find(z => z.id === groupe.zoneId);
+      if (zone && zone.ecoles.length > 0) {
+        groupe.ecoleId = zone.ecoles[0].id;
+      }
+    } else {
+      groupe.ecoleId = undefined;
     }
   }
 
@@ -549,31 +729,6 @@ export class PlanningComponent {
     if (planning) {
       this.excelExport.exportPlanningToExcel(planning);
     }
-  }
-
-  private getGroupesForDemiJournee(planning: PlanningSemaine, jour: JourSemaine, demiJournee: DemiJournee): Groupe[] {
-    const entry = planning.entries.find(e => e.jour === jour && e.demiJournee === demiJournee);
-    return entry?.groupes || [];
-  }
-
-  getRowClass(row: DisplayRow): string {
-    if (row.type === 'demijournee') return 'row-demijournee';
-    if (row.type === 'empty') return 'row-empty';
-    if (row.type === 'groupe') {
-      const isTrinome = row.groupe && row.groupe.agents.length === 3;
-      return isTrinome ? 'row-groupe trinome' : 'row-groupe';
-    }
-    return '';
-  }
-
-  getAgentsInitiales(agents: { nom: string }[]): string {
-    return agents.map(a => {
-      const parts = a.nom.trim().split(' ');
-      if (parts.length >= 2) {
-        return parts[0].charAt(0).toUpperCase() + parts[1].charAt(0).toUpperCase();
-      }
-      return a.nom.substring(0, 2).toUpperCase();
-    }).join('\n');
   }
 
   formatDateShort(date: Date): string {
@@ -591,3 +746,4 @@ export class PlanningComponent {
     return new Date(d.setDate(diff));
   }
 }
+

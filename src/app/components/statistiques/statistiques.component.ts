@@ -1,7 +1,13 @@
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { StatistiquesService } from '../../services/statistiques.service';
-import { StatistiqueBinome, StatistiqueZone, StatistiqueAgent } from '../../models/statistiques.model';
+import { 
+  StatistiqueBinome, 
+  StatistiqueZone, 
+  StatistiqueAgent,
+  StatistiqueVehicule,
+  StatistiqueExterieur
+} from '../../models/statistiques.model';
 
 @Component({
   selector: 'app-statistiques',
@@ -9,14 +15,39 @@ import { StatistiqueBinome, StatistiqueZone, StatistiqueAgent } from '../../mode
   imports: [CommonModule],
   template: `
     <div class="container">
+      <!-- Quick Stats Cards -->
+      <div class="stats-cards">
+        <div class="stat-card">
+          <div class="stat-icon">👥</div>
+          <div class="stat-info">
+            <span class="stat-value">{{ statistiquesAgents().length }}</span>
+            <span class="stat-label">Agents actifs</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🚗</div>
+          <div class="stat-info">
+            <span class="stat-value">{{ getTotalVehicule() }}</span>
+            <span class="stat-label">Sorties véhicule</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🌳</div>
+          <div class="stat-info">
+            <span class="stat-value">{{ getTotalExterieur() }}</span>
+            <span class="stat-label">Sorties extérieur</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Statistiques Binômes -->
       <div class="card">
         <div class="card-header">
-          <h2>Statistiques des Binômes</h2>
+          <h2>🤝 Paires d'agents les plus fréquentes</h2>
         </div>
         <div class="stats-content">
           <p class="stats-description">
-            Nombre de fois que chaque paire d'agents a travaillé ensemble
+            Agents qui travaillent le plus souvent ensemble
           </p>
           <div class="table-wrapper">
             <table>
@@ -29,18 +60,154 @@ import { StatistiqueBinome, StatistiqueZone, StatistiqueAgent } from '../../mode
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let stat of statistiquesBinomes()">
+                <tr *ngFor="let stat of pairesPlusFrequentes(); let i = index">
                   <td><strong>{{ stat.agent1 }}</strong></td>
                   <td><strong>{{ stat.agent2 }}</strong></td>
                   <td>
-                    <span class="badge badge-info">{{ stat.nombreOccurrences }}</span>
+                    <div class="bar-container">
+                      <div class="bar" [style.width.%]="getBarWidth(stat.nombreOccurrences, getMaxPaires())"></div>
+                      <span class="bar-value">{{ stat.nombreOccurrences }}</span>
+                    </div>
+                  </td>
+                  <td>{{ stat.dernierTravail ? formatDate(stat.dernierTravail) : '-' }}</td>
+                </tr>
+                <tr *ngIf="pairesPlusFrequentes().length === 0">
+                  <td colspan="4" class="text-center">Aucune statistique disponible</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Statistiques Véhicules -->
+      <div class="card">
+        <div class="card-header">
+          <h2>🚗 Répartition des véhicules</h2>
+        </div>
+        <div class="stats-content">
+          <p class="stats-description">
+            Agents classés par utilisation du véhicule (priorité à ceux qui en ont eu le moins)
+          </p>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Agent</th>
+                  <th>En véhicule</th>
+                  <th>À pied</th>
+                  <th>% Véhicule</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let stat of statistiquesVehicules()">
+                  <td><strong>{{ stat.agentNom }}</strong></td>
+                  <td>
+                    <span class="badge badge-success">{{ stat.nombreVehicule }}</span>
                   </td>
                   <td>
-                    {{ stat.dernierTravail ? formatDate(stat.dernierTravail) : '-' }}
+                    <span class="badge badge-secondary">{{ stat.nombrePied }}</span>
+                  </td>
+                  <td>
+                    <div class="progress-bar">
+                      <div class="progress" [style.width.%]="stat.pourcentageVehicule"></div>
+                      <span class="progress-text">{{ stat.pourcentageVehicule }}%</span>
+                    </div>
                   </td>
                 </tr>
-                <tr *ngIf="statistiquesBinomes().length === 0">
+                <tr *ngIf="statistiquesVehicules().length === 0">
                   <td colspan="4" class="text-center">Aucune statistique disponible</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Statistiques Zones Extérieures -->
+      <div class="card">
+        <div class="card-header">
+          <h2>🌳 Agents en zones extérieures</h2>
+        </div>
+        <div class="stats-content">
+          <p class="stats-description">
+            Zones extérieures = Zone 1 (Saint-Servais) et Zone 4 (Jambes)
+          </p>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Agent</th>
+                  <th>Extérieur</th>
+                  <th>Intérieur</th>
+                  <th>% Extérieur</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let stat of statistiquesExterieur()">
+                  <td><strong>{{ stat.agentNom }}</strong></td>
+                  <td>
+                    <span class="badge badge-info">{{ stat.nombreExterieur }}</span>
+                  </td>
+                  <td>
+                    <span class="badge badge-secondary">{{ stat.nombreInterieur }}</span>
+                  </td>
+                  <td>
+                    <div class="progress-bar progress-green">
+                      <div class="progress" [style.width.%]="stat.pourcentageExterieur"></div>
+                      <span class="progress-text">{{ stat.pourcentageExterieur }}%</span>
+                    </div>
+                  </td>
+                </tr>
+                <tr *ngIf="statistiquesExterieur().length === 0">
+                  <td colspan="4" class="text-center">Aucune statistique disponible</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Statistiques par Agent -->
+      <div class="card">
+        <div class="card-header">
+          <h2>📊 Détails par Agent</h2>
+        </div>
+        <div class="stats-content">
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Agent</th>
+                  <th>Total</th>
+                  <th>Matin</th>
+                  <th>Après-midi</th>
+                  <th>Partenaires fréquents</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let stat of statistiquesAgents()">
+                  <td><strong>{{ stat.nom }}</strong></td>
+                  <td>
+                    <span class="badge badge-primary">{{ stat.nombreTotal }}</span>
+                  </td>
+                  <td>
+                    <span class="badge badge-warning">{{ stat.nombreMatin }}</span>
+                  </td>
+                  <td>
+                    <span class="badge badge-info">{{ stat.nombreApresMidi }}</span>
+                  </td>
+                  <td>
+                    <div class="partenaires-list">
+                      <span *ngFor="let partenaire of getTopPartenaires(stat.partenairesFrequents)" class="partenaire-badge">
+                        {{ partenaire.nom }} ({{ partenaire.count }})
+                      </span>
+                      <span *ngIf="getTopPartenaires(stat.partenairesFrequents).length === 0">-</span>
+                    </div>
+                  </td>
+                </tr>
+                <tr *ngIf="statistiquesAgents().length === 0">
+                  <td colspan="5" class="text-center">Aucune statistique disponible</td>
                 </tr>
               </tbody>
             </table>
@@ -51,227 +218,229 @@ import { StatistiqueBinome, StatistiqueZone, StatistiqueAgent } from '../../mode
       <!-- Statistiques Zones -->
       <div class="card">
         <div class="card-header">
-          <h2>Statistiques des Zones</h2>
+          <h2>📍 Répartition par Zone</h2>
         </div>
         <div class="stats-content">
-          <p class="stats-description">
-            Répartition du travail par zone
-          </p>
-          <div class="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>Zone</th>
-                  <th>Occurrences</th>
-                  <th>Agents</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let stat of statistiquesZones()">
-                  <td><strong>{{ stat.zone }}</strong></td>
-                  <td>
-                    <span class="badge badge-info">{{ stat.nombreOccurrences }}</span>
-                  </td>
-                  <td>
-                    <div class="agents-list">
-                      <span *ngFor="let agent of getAgentsList(stat.agents)" class="agent-badge">
-                        {{ agent.nom }} ({{ agent.count }})
-                      </span>
-                    </div>
-                  </td>
-                </tr>
-                <tr *ngIf="statistiquesZones().length === 0">
-                  <td colspan="3" class="text-center">Aucune statistique de zone disponible</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- Statistiques Agents -->
-      <div class="card">
-        <div class="card-header">
-          <h2>Statistiques par Agent</h2>
-        </div>
-        <div class="stats-content">
-          <p class="stats-description">
-            Détails du travail de chaque agent
-          </p>
-          <div class="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>Agent</th>
-                  <th>Total</th>
-                  <th>Matin</th>
-                  <th>Après-midi</th>
-                  <th>Zones</th>
-                  <th>Partenaires fréquents</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let stat of statistiquesAgents()">
-                  <td><strong>{{ stat.nom }}</strong></td>
-                  <td>
-                    <span class="badge badge-success">{{ stat.nombreTotal }}</span>
-                  </td>
-                  <td>
-                    <span class="badge badge-warning">{{ stat.nombreMatin }}</span>
-                  </td>
-                  <td>
-                    <span class="badge badge-info">{{ stat.nombreApresMidi }}</span>
-                  </td>
-                  <td>
-                    <div class="zones-list">
-                      <span *ngFor="let zone of getZonesList(stat.zonesTravaillees)" class="zone-badge">
-                        {{ zone.nom }} ({{ zone.count }})
-                      </span>
-                      <span *ngIf="getZonesList(stat.zonesTravaillees).length === 0">-</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="partenaires-list">
-                      <span *ngFor="let partenaire of getPartenairesList(stat.partenairesFrequents)" class="partenaire-badge">
-                        {{ partenaire.nom }} ({{ partenaire.count }})
-                      </span>
-                      <span *ngIf="getPartenairesList(stat.partenairesFrequents).length === 0">-</span>
-                    </div>
-                  </td>
-                </tr>
-                <tr *ngIf="statistiquesAgents().length === 0">
-                  <td colspan="6" class="text-center">Aucune statistique d'agent disponible</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- Paires les plus/moins fréquentes -->
-      <div class="card">
-        <div class="card-header">
-          <h2>Analyse des Paires</h2>
-        </div>
-        <div class="stats-grid">
-          <div class="stats-section">
-            <h3>Paires les plus fréquentes</h3>
-            <ul class="stats-list">
-              <li *ngFor="let stat of pairesPlusFrequentes()">
-                <strong>{{ stat.agent1 }}</strong> & <strong>{{ stat.agent2 }}</strong>
-                <span class="badge badge-info">{{ stat.nombreOccurrences }} fois</span>
-              </li>
-              <li *ngIf="pairesPlusFrequentes().length === 0">Aucune donnée</li>
-            </ul>
-          </div>
-          <div class="stats-section">
-            <h3>Paires les moins fréquentes</h3>
-            <ul class="stats-list">
-              <li *ngFor="let stat of pairesMoinsFrequentes()">
-                <strong>{{ stat.agent1 }}</strong> & <strong>{{ stat.agent2 }}</strong>
-                <span class="badge badge-warning">{{ stat.nombreOccurrences }} fois</span>
-              </li>
-              <li *ngIf="pairesMoinsFrequentes().length === 0">Aucune donnée</li>
-            </ul>
+          <div class="zones-grid">
+            <div *ngFor="let zone of statistiquesZones()" 
+                 class="zone-card"
+                 [class.zone-exterieur]="zone.isExterieur">
+              <div class="zone-header">
+                <span class="zone-name">{{ zone.zoneName }}</span>
+                <span class="zone-count">{{ zone.nombreOccurrences }}</span>
+              </div>
+              <div class="zone-badge" *ngIf="zone.isExterieur">Extérieur</div>
+              <div class="zone-agents">
+                <span *ngFor="let agent of getTopAgentsZone(zone.agents)" class="agent-badge">
+                  {{ agent.nom }}: {{ agent.count }}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>
   `,
   styles: [`
+    .stats-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    }
+
+    .stat-icon {
+      font-size: 32px;
+    }
+
+    .stat-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: #1e293b;
+    }
+
+    .stat-label {
+      font-size: 13px;
+      color: #64748b;
+    }
+
     .card-header {
       margin-bottom: 0;
       padding-bottom: 24px;
       border-bottom: 2px solid #e2e8f0;
     }
-    
+
     .card-header h2 {
-      font-size: 28px;
+      font-size: 22px;
       font-weight: 700;
       color: #1e293b;
       margin: 0;
     }
-    
+
     .stats-description {
       color: #64748b;
-      margin: 24px 0;
+      margin: 24px 0 16px 0;
       font-size: 14px;
-      line-height: 1.6;
     }
-    
+
     .table-wrapper {
       overflow-x: auto;
-      margin-top: 24px;
-      border-radius: 12px;
-      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
-    
-    .agents-list,
-    .zones-list,
+
+    .bar-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .bar {
+      height: 20px;
+      background: linear-gradient(90deg, #3b82f6, #60a5fa);
+      border-radius: 4px;
+      min-width: 4px;
+    }
+
+    .bar-value {
+      font-weight: 600;
+      color: #1e293b;
+      min-width: 30px;
+    }
+
+    .progress-bar {
+      position: relative;
+      height: 24px;
+      background: #e2e8f0;
+      border-radius: 12px;
+      overflow: hidden;
+      min-width: 100px;
+    }
+
+    .progress-bar .progress {
+      height: 100%;
+      background: linear-gradient(90deg, #3b82f6, #60a5fa);
+      border-radius: 12px;
+    }
+
+    .progress-bar.progress-green .progress {
+      background: linear-gradient(90deg, #10b981, #34d399);
+    }
+
+    .progress-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 11px;
+      font-weight: 600;
+      color: #1e293b;
+    }
+
+    .badge-primary {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    .badge-secondary {
+      background: #f1f5f9;
+      color: #475569;
+    }
+
     .partenaires-list {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 6px;
     }
-    
-    .agent-badge,
-    .zone-badge,
+
     .partenaire-badge {
-      display: inline-block;
-      padding: 6px 12px;
-      background: #eef2ff;
-      color: #4338ca;
-      border-radius: 6px;
-      font-size: 12px;
+      padding: 4px 8px;
+      background: #f0fdf4;
+      color: #166534;
+      border-radius: 4px;
+      font-size: 11px;
       font-weight: 500;
-      border: 1px solid #e0e7ff;
     }
-    
-    .stats-grid {
+
+    .zones-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 24px;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
       margin-top: 24px;
     }
-    
-    .stats-section {
+
+    .zone-card {
       background: #f8fafc;
-      padding: 20px;
       border-radius: 12px;
+      padding: 20px;
       border: 1px solid #e2e8f0;
     }
-    
-    .stats-section h3 {
-      margin: 0 0 16px 0;
-      color: #1e293b;
-      font-size: 18px;
-      font-weight: 600;
+
+    .zone-card.zone-exterieur {
+      background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+      border-color: #a7f3d0;
     }
-    
-    .stats-list {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-    }
-    
-    .stats-list li {
-      padding: 14px 16px;
-      margin-bottom: 8px;
-      background: white;
-      border-radius: 8px;
+
+    .zone-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .zone-name {
+      font-weight: 600;
+      color: #1e293b;
+      font-size: 14px;
+    }
+
+    .zone-count {
+      font-size: 24px;
+      font-weight: 700;
+      color: #3b82f6;
+    }
+
+    .zone-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      background: #10b981;
+      color: white;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .zone-agents {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .agent-badge {
+      padding: 4px 8px;
+      background: white;
       border: 1px solid #e2e8f0;
-      transition: all 0.2s ease;
+      border-radius: 4px;
+      font-size: 11px;
+      color: #475569;
     }
-    
-    .stats-list li:hover {
-      background: #f8fafc;
-      border-color: #cbd5e1;
-      transform: translateX(2px);
-    }
-    
+
     .text-center {
       text-align: center;
       padding: 40px 20px;
@@ -285,8 +454,9 @@ export class StatistiquesComponent {
   statistiquesBinomes = signal<StatistiqueBinome[]>([]);
   statistiquesZones = signal<StatistiqueZone[]>([]);
   statistiquesAgents = signal<StatistiqueAgent[]>([]);
+  statistiquesVehicules = signal<StatistiqueVehicule[]>([]);
+  statistiquesExterieur = signal<StatistiqueExterieur[]>([]);
   pairesPlusFrequentes = signal<StatistiqueBinome[]>([]);
-  pairesMoinsFrequentes = signal<StatistiqueBinome[]>([]);
 
   constructor() {
     this.chargerStatistiques();
@@ -296,32 +466,43 @@ export class StatistiquesComponent {
     this.statistiquesBinomes.set(this.statistiquesService.getStatistiquesBinomes());
     this.statistiquesZones.set(this.statistiquesService.getStatistiquesZones());
     this.statistiquesAgents.set(this.statistiquesService.getStatistiquesAgents());
+    this.statistiquesVehicules.set(this.statistiquesService.getStatistiquesVehicules());
+    this.statistiquesExterieur.set(this.statistiquesService.getStatistiquesExterieur());
     this.pairesPlusFrequentes.set(this.statistiquesService.getPairesPlusFrequentes(10));
-    this.pairesMoinsFrequentes.set(this.statistiquesService.getPairesMoinsFrequentes(10));
   }
 
-  getAgentsList(agents: { [key: string]: number }): Array<{ nom: string; count: number }> {
-    return Object.entries(agents)
-      .map(([nom, count]) => ({ nom, count }))
-      .sort((a, b) => b.count - a.count);
+  getTotalVehicule(): number {
+    return this.statistiquesVehicules().reduce((sum, s) => sum + s.nombreVehicule, 0);
   }
 
-  getZonesList(zones: { [key: string]: number }): Array<{ nom: string; count: number }> {
-    return Object.entries(zones)
-      .map(([nom, count]) => ({ nom, count }))
-      .sort((a, b) => b.count - a.count);
+  getTotalExterieur(): number {
+    return this.statistiquesExterieur().reduce((sum, s) => sum + s.nombreExterieur, 0);
   }
 
-  getPartenairesList(partenaires: { [key: string]: number }): Array<{ nom: string; count: number }> {
+  getMaxPaires(): number {
+    const paires = this.pairesPlusFrequentes();
+    return paires.length > 0 ? paires[0].nombreOccurrences : 1;
+  }
+
+  getBarWidth(value: number, max: number): number {
+    return Math.round((value / max) * 100);
+  }
+
+  getTopPartenaires(partenaires: { [nom: string]: number }): Array<{ nom: string; count: number }> {
     return Object.entries(partenaires)
       .map(([nom, count]) => ({ nom, count }))
       .sort((a, b) => b.count - a.count)
-      .slice(0, 5); // Top 5
+      .slice(0, 3);
+  }
+
+  getTopAgentsZone(agents: { [nom: string]: number }): Array<{ nom: string; count: number }> {
+    return Object.entries(agents)
+      .map(([nom, count]) => ({ nom, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
   }
 
   formatDate(date: Date): string {
     return new Date(date).toLocaleDateString('fr-FR');
   }
 }
-
-

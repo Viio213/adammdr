@@ -3,7 +3,8 @@ import * as XLSX from 'xlsx';
 import { DataService } from './data.service';
 import { PlanningSemaine } from '../models/planning.model';
 import { HistoriqueEntry } from '../models/historique.model';
-import { DemiJournee, JOURS_SEMAINE } from '../models/agent.model';
+import { DemiJournee, JOURS_TRAVAIL } from '../models/agent.model';
+import { ZONES } from '../models/zone.model';
 
 @Injectable({
   providedIn: 'root'
@@ -17,41 +18,53 @@ export class ExcelExportService {
   exportPlanningToExcel(planning: PlanningSemaine): void {
     const data: any[] = [];
 
-    // Header row (uppercase for visibility)
-    data.push(['JOUR', 'BINÔMES', 'ZONES', 'ECOLE', 'MISSION', 'VOITURE', 'COMMENTAIRES']);
+    // Header row
+    data.push(['JOUR', 'PÉRIODE', 'BINÔMES', 'ZONES', 'VÉHICULE', 'MISSION', 'RÉUNION', 'COMMENTAIRES']);
 
-    // Only active days (Monday to Friday)
-    const joursActifs = JOURS_SEMAINE.slice(0, 5);
-
-    for (const jour of joursActifs) {
-      for (const demiJournee of [DemiJournee.MATIN, DemiJournee.APRES_MIDI]) {
-        const entry = planning.entries.find(e => e.jour === jour && e.demiJournee === demiJournee);
-        
-        const demiJourneeLabel = demiJournee === DemiJournee.MATIN ? 'Matin' : 'Après-midi';
-        
-        if (entry && entry.groupes.length > 0) {
-          entry.groupes.forEach((groupe, index) => {
-            const binomes = groupe.agents.map(a => a.nom).join(', ');
-            data.push([
-              index === 0 ? `${jour} - ${demiJourneeLabel}` : '',
-              binomes,
-              groupe.zone || '',
-              groupe.reunion || '',
-              groupe.mission || '',
-              groupe.voiture || '',
-              groupe.commentaires || ''
-            ]);
-          });
-        } else {
+    // Use the new jours structure
+    for (const jourPlanning of planning.jours) {
+      // Morning groups
+      if (jourPlanning.matin.groupes.length > 0) {
+        jourPlanning.matin.groupes.forEach((groupe, index) => {
+          const binomes = groupe.agents.map(a => a.nom).join(' / ');
+          const zone = groupe.zoneId ? ZONES.find(z => z.id === groupe.zoneId) : null;
           data.push([
-            `${jour} - ${demiJourneeLabel}`,
-            '(Aucun binôme)',
-            '', '', '', '', ''
+            index === 0 ? jourPlanning.jour : '',
+            index === 0 ? 'Matin' : '',
+            binomes,
+            zone ? zone.nom : '',
+            groupe.vehicule ? 'OUI' : 'NON',
+            groupe.mission || '',
+            groupe.reunion || '',
+            groupe.commentaires || ''
           ]);
-        }
+        });
+      } else {
+        data.push([jourPlanning.jour, 'Matin', '(Aucun)', '', '', '', '', '']);
       }
-      // Add empty row between days for readability
-      data.push(['', '', '', '', '', '', '']);
+
+      // Afternoon groups
+      if (jourPlanning.apresMidi.groupes.length > 0) {
+        jourPlanning.apresMidi.groupes.forEach((groupe, index) => {
+          const binomes = groupe.agents.map(a => a.nom).join(' / ');
+          const zone = groupe.zoneId ? ZONES.find(z => z.id === groupe.zoneId) : null;
+          data.push([
+            '',
+            index === 0 ? 'Après-midi' : '',
+            binomes,
+            zone ? zone.nom : '',
+            groupe.vehicule ? 'OUI' : 'NON',
+            groupe.mission || '',
+            groupe.reunion || '',
+            groupe.commentaires || ''
+          ]);
+        });
+      } else {
+        data.push(['', 'Après-midi', '(Aucun)', '', '', '', '', '']);
+      }
+
+      // Empty row between days
+      data.push(['', '', '', '', '', '', '', '']);
     }
 
     // Create worksheet
@@ -59,13 +72,14 @@ export class ExcelExportService {
 
     // Set column widths
     ws['!cols'] = [
-      { wch: 22 },  // JOUR
-      { wch: 28 },  // BINÔMES
-      { wch: 12 },  // ZONES
-      { wch: 12 },  // ECOLE
-      { wch: 20 },  // MISSION
-      { wch: 12 },  // VOITURE
-      { wch: 28 }   // COMMENTAIRES
+      { wch: 12 },  // JOUR
+      { wch: 12 },  // PÉRIODE
+      { wch: 20 },  // BINÔMES
+      { wch: 25 },  // ZONES
+      { wch: 10 },  // VÉHICULE
+      { wch: 18 },  // MISSION
+      { wch: 18 },  // RÉUNION
+      { wch: 25 }   // COMMENTAIRES
     ];
 
     // Create workbook

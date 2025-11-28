@@ -37,6 +37,11 @@ export const routes: Routes = [
     canActivate: [chefEquipeGuard]
   },
   {
+    path: 'conges',
+    loadComponent: () => import('./components/conges/conges.component').then(m => m.CongesComponent),
+    canActivate: [authGuard]
+  },
+  {
     path: 'utilisateurs',
     loadComponent: () => import('./components/utilisateurs/utilisateurs.component').then(m => m.UtilisateursComponent),
     canActivate: [adminGuard]

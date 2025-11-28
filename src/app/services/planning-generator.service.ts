@@ -1,7 +1,8 @@
 import { Injectable, inject } from '@angular/core';
-import { Agent, JourSemaine, DemiJournee, JOURS_SEMAINE } from '../models/agent.model';
-import { Groupe, PlanningEntry, PlanningSemaine } from '../models/planning.model';
+import { Agent, JourSemaine, DemiJournee, JOURS_TRAVAIL } from '../models/agent.model';
+import { Groupe, PlanningEntry, PlanningJour, PlanningSemaine } from '../models/planning.model';
 import { HistoriqueEntry } from '../models/historique.model';
+import { ZONES, Zone } from '../models/zone.model';
 import { DataService } from './data.service';
 
 @Injectable({
@@ -10,104 +11,141 @@ import { DataService } from './data.service';
 export class PlanningGeneratorService {
   private dataService = inject(DataService);
 
-  // Available zones for random assignment
-  private readonly ZONES = ['Zone 1', 'Zone 2', 'Zone 3', 'Zone 4'];
-
   /**
-   * Generate a weekly planning respecting all constraints
+   * Generate a full weekly planning
    */
   generatePlanningSemaine(dateDebut: Date): PlanningSemaine {
-    const agents = this.dataService.getAgents().filter(a => a.actif);
-    const historique = this.dataService.getHistorique();
-    
     const dateFin = new Date(dateDebut);
-    dateFin.setDate(dateFin.getDate() + 6); // End of week (7 days)
+    dateFin.setDate(dateFin.getDate() + 4); // Monday to Friday
 
-    const entries: PlanningEntry[] = [];
+    const jours: PlanningJour[] = [];
 
-    // Generate planning for each day of the week
-    for (let i = 0; i < 7; i++) {
-      const jour = JOURS_SEMAINE[i];
+    for (let i = 0; i < 5; i++) {
+      const jour = JOURS_TRAVAIL[i];
+      const date = new Date(dateDebut);
+      date.setDate(date.getDate() + i);
 
-      // Generate morning planning
-      const matin = this.generateDemiJournee(
-        agents,
-        jour,
-        DemiJournee.MATIN,
-        historique,
-        [] // No entries yet for this day
-      );
-      entries.push(matin);
-
-      // Generate afternoon planning (avoid same pairs as morning)
-      const apresMidi = this.generateDemiJournee(
-        agents,
-        jour,
-        DemiJournee.APRES_MIDI,
-        historique,
-        [matin] // Avoid same pairs as morning
-      );
-      entries.push(apresMidi);
+      const planningJour = this.generatePlanningJour(jour, date);
+      jours.push(planningJour);
     }
+
+    // Build entries from jours for compatibility
+    const entries: PlanningEntry[] = jours.flatMap(j => [j.matin, j.apresMidi]);
 
     return {
       id: this.generateId(),
       dateDebut,
       dateFin,
+      jours,
+      entries,
+      dateGeneration: new Date(),
+      isConfirmed: false
+    };
+  }
+
+  /**
+   * Generate planning for a single day
+   */
+  generatePlanningJour(jour: JourSemaine, date: Date): PlanningJour {
+    const historique = this.dataService.getHistorique();
+
+    // Generate morning
+    const matin = this.generateDemiJournee(jour, date, DemiJournee.MATIN, historique, []);
+
+    // Generate afternoon (must avoid same pairs as morning)
+    const apresMidi = this.generateDemiJournee(jour, date, DemiJournee.APRES_MIDI, historique, [matin]);
+
+    return {
+      jour,
+      date,
+      matin,
+      apresMidi
+    };
+  }
+
+  /**
+   * Regenerate only one day in an existing planning
+   */
+  regenerateJour(planning: PlanningSemaine, jour: JourSemaine): PlanningSemaine {
+    const jourIndex = JOURS_TRAVAIL.indexOf(jour);
+    if (jourIndex === -1) return planning;
+
+    const date = new Date(planning.dateDebut);
+    date.setDate(date.getDate() + jourIndex);
+
+    const newPlanningJour = this.generatePlanningJour(jour, date);
+
+    const updatedJours = [...planning.jours];
+    updatedJours[jourIndex] = newPlanningJour;
+
+    // Rebuild entries
+    const entries: PlanningEntry[] = updatedJours.flatMap(j => [j.matin, j.apresMidi]);
+
+    return {
+      ...planning,
+      jours: updatedJours,
       entries,
       dateGeneration: new Date()
     };
   }
 
   /**
-   * Generate planning for a half-day respecting all constraints
+   * Generate planning for a half-day
    */
   private generateDemiJournee(
-    agents: Agent[],
     jour: JourSemaine,
+    date: Date,
     demiJournee: DemiJournee,
     historique: HistoriqueEntry[],
     entriesMemeJour: PlanningEntry[]
   ): PlanningEntry {
-    // Get available agents for this half-day
-    const agentsDisponibles = agents.filter(agent => 
-      this.isAgentDisponible(agent, jour, demiJournee)
+    // Get available agents for this half-day (considering leaves)
+    const allAgents = this.dataService.getAgents().filter(a => a.actif);
+    const agentsDisponibles = allAgents.filter(agent =>
+      this.dataService.isAgentAvailable(agent.id, date, demiJournee)
     );
 
     if (agentsDisponibles.length < 2) {
-      // Not enough agents, return empty groups
       return {
         jour,
         demiJournee,
-        groupes: []
+        groupes: [],
+        isGenerated: true
       };
     }
 
     const groupes: Groupe[] = [];
     const agentsUtilises = new Set<string>();
-    let trinomeCree = false;
+    
+    // Get zones already used by agents in the morning (for afternoon)
+    const zonesMatin = this.getZonesMatinParAgent(entriesMemeJour);
 
-    // Create groups
+    // Available zones for this period
+    const zonesDisponibles = [...ZONES];
+    
+    // Shuffle zones for variety
+    this.shuffleArray(zonesDisponibles);
+
+    let zoneIndex = 0;
+
     while (agentsUtilises.size < agentsDisponibles.length) {
       const agentsRestants = agentsDisponibles.filter(a => !agentsUtilises.has(a.id));
 
-      if (agentsRestants.length === 0) break;
-
-      // Determine group size
-      let tailleGroupe: number;
-      if (!trinomeCree && agentsRestants.length >= 3 && agentsUtilises.size === 0) {
-        // Create one trinôme if possible and not already created
-        tailleGroupe = 3;
-        trinomeCree = true;
-      } else {
-        // Create binômes
-        tailleGroupe = 2;
-      }
-
-      // If not enough agents for a binôme, stop
       if (agentsRestants.length < 2) break;
 
-      // Select agents for the group
+      // Determine group size (prefer binômes, max 1 trinôme per period if odd number)
+      let tailleGroupe = 2;
+      if (agentsRestants.length === 3) {
+        tailleGroupe = 3; // If exactly 3 left, make a trinôme
+      } else if (agentsRestants.length % 2 === 1 && groupes.length === 0) {
+        tailleGroupe = 3; // Make first group a trinôme if odd total
+      }
+
+      // Select zone for this group
+      const zone = zonesDisponibles[zoneIndex % zonesDisponibles.length];
+      zoneIndex++;
+
+      // Select agents avoiding same pairs as morning and same zone
       const agentsGroupe = this.selectAgentsPourGroupe(
         agentsRestants,
         tailleGroupe,
@@ -115,15 +153,24 @@ export class PlanningGeneratorService {
         demiJournee,
         historique,
         entriesMemeJour,
-        groupes
+        zone,
+        zonesMatin
       );
 
       if (agentsGroupe.length >= 2) {
         agentsGroupe.forEach(a => agentsUtilises.add(a.id));
+        
+        // Pick a random school from the zone
+        const ecole = zone.ecoles.length > 0 
+          ? zone.ecoles[Math.floor(Math.random() * zone.ecoles.length)]
+          : null;
+
         groupes.push({
           id: this.generateId(),
           agents: agentsGroupe,
-          zone: this.getRandomZone(groupes)
+          zoneId: zone.id,
+          ecoleId: ecole?.id,
+          vehicule: false // Default to walking, can be changed manually
         });
       } else {
         break;
@@ -133,8 +180,30 @@ export class PlanningGeneratorService {
     return {
       jour,
       demiJournee,
-      groupes
+      groupes,
+      isGenerated: true
     };
+  }
+
+  /**
+   * Get zones used by each agent in the morning
+   */
+  private getZonesMatinParAgent(entriesMemeJour: PlanningEntry[]): Map<string, string> {
+    const zonesMatin = new Map<string, string>();
+    
+    entriesMemeJour
+      .filter(e => e.demiJournee === DemiJournee.MATIN)
+      .forEach(entry => {
+        entry.groupes.forEach(groupe => {
+          if (groupe.zoneId) {
+            groupe.agents.forEach(agent => {
+              zonesMatin.set(agent.id, groupe.zoneId!);
+            });
+          }
+        });
+      });
+    
+    return zonesMatin;
   }
 
   /**
@@ -147,89 +216,74 @@ export class PlanningGeneratorService {
     demiJournee: DemiJournee,
     historique: HistoriqueEntry[],
     entriesMemeJour: PlanningEntry[],
-    groupesDejaCrees: Groupe[]
+    zone: Zone,
+    zonesMatin: Map<string, string>
   ): Agent[] {
-    // Shuffle available agents
-    const agentsShuffled = [...agentsDisponibles].sort(() => Math.random() - 0.5);
+    // Filter agents who weren't in the same zone in the morning
+    let candidats = agentsDisponibles.filter(a => {
+      const zoneMatin = zonesMatin.get(a.id);
+      return !zoneMatin || zoneMatin !== zone.id;
+    });
 
-    // Try to find a combination that avoids repetitions
-    for (let i = 0; i < agentsShuffled.length; i++) {
-      const candidats: Agent[] = [agentsShuffled[i]];
+    // If not enough candidates, use all available
+    if (candidats.length < taille) {
+      candidats = [...agentsDisponibles];
+    }
 
-      for (let j = i + 1; j < agentsShuffled.length && candidats.length < taille; j++) {
-        const candidat = agentsShuffled[j];
-        
-        // Check if this pair already exists today (morning/afternoon)
-        const existeAujourdhui = this.pairExisteAujourdhui(
-          candidats[0],
-          candidat,
-          entriesMemeJour
+    // Shuffle for randomness
+    this.shuffleArray(candidats);
+
+    const selected: Agent[] = [];
+
+    for (const agent of candidats) {
+      if (selected.length >= taille) break;
+
+      // Check if this agent would form a forbidden pair with any selected agent
+      const formesPaireMatin = selected.some(a => 
+        this.pairExisteDansPeriode(a, agent, entriesMemeJour, DemiJournee.MATIN)
+      );
+
+      if (!formesPaireMatin) {
+        // Check frequency in history
+        const tropFrequent = selected.some(a => 
+          this.pairTropFrequent(a, agent, historique)
         );
 
-        // Check if this pair is too frequent in history
-        const tropFrequent = this.pairTropFrequent(
-          candidats[0],
-          candidat,
-          historique
-        );
-
-        if (!existeAujourdhui && !tropFrequent) {
-          candidats.push(candidat);
+        if (!tropFrequent || selected.length === 0) {
+          selected.push(agent);
         }
-      }
-
-      if (candidats.length >= 2) {
-        // If we need 3 but only have 2, try to add a third
-        if (taille === 3 && candidats.length === 2) {
-          for (let k = 0; k < agentsShuffled.length; k++) {
-            const agent3 = agentsShuffled[k];
-            if (!candidats.includes(agent3)) {
-              const pair1Existe = this.pairExisteAujourdhui(candidats[0], agent3, entriesMemeJour);
-              const pair2Existe = this.pairExisteAujourdhui(candidats[1], agent3, entriesMemeJour);
-              
-              if (!pair1Existe && !pair2Existe) {
-                candidats.push(agent3);
-                break;
-              }
-            }
-          }
-        }
-
-        return candidats;
       }
     }
 
-    // If no good combination found, return first available agents
-    return agentsShuffled.slice(0, Math.min(taille, agentsShuffled.length));
+    // If we couldn't find enough without violations, just take the first available
+    if (selected.length < 2) {
+      return candidats.slice(0, Math.min(taille, candidats.length));
+    }
+
+    return selected;
   }
 
   /**
-   * Check if agent is available for a specific day and half-day
+   * Check if a pair exists in a specific period
    */
-  private isAgentDisponible(agent: Agent, jour: JourSemaine, demiJournee: DemiJournee): boolean {
-    const disponibilite = agent.disponibilites.find(
-      d => d.jour === jour && d.demiJournee === demiJournee
-    );
-    return disponibilite?.disponible ?? false;
-  }
-
-  /**
-   * Check if a pair already exists in today's entries
-   */
-  private pairExisteAujourdhui(
+  private pairExisteDansPeriode(
     agent1: Agent,
     agent2: Agent,
-    entries: PlanningEntry[]
+    entries: PlanningEntry[],
+    demiJournee: DemiJournee
   ): boolean {
-    return entries.some(entry =>
-      entry.groupes.some(groupe =>
-        groupe.agents.includes(agent1) && groupe.agents.includes(agent2)
-      )
-    );
+    return entries
+      .filter(e => e.demiJournee === demiJournee)
+      .some(entry =>
+        entry.groupes.some(groupe =>
+          groupe.agents.some(a => a.id === agent1.id) &&
+          groupe.agents.some(a => a.id === agent2.id)
+        )
+      );
   }
 
   /**
-   * Check if a pair is too frequent in history (more than 3 times in last 4 weeks)
+   * Check if a pair is too frequent in history
    */
   private pairTropFrequent(
     agent1: Agent,
@@ -242,39 +296,11 @@ export class PlanningGeneratorService {
     const occurrences = historique
       .filter(h => new Date(h.date) >= quatreSemainesAgo)
       .filter(h => {
-        const binomes = h.binomes.split(',').map(b => b.trim());
-        return binomes.includes(agent1.nom) && binomes.includes(agent2.nom);
+        const agentIds = h.agentIds || [];
+        return agentIds.includes(agent1.id) && agentIds.includes(agent2.id);
       }).length;
 
     return occurrences >= 3;
-  }
-
-  /**
-   * Convert date to day of week
-   */
-  private getJourSemaine(date: Date): JourSemaine {
-    const jours = ['DIMANCHE', 'LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI'];
-    return jours[date.getDay()] as JourSemaine;
-  }
-
-  /**
-   * Generate unique ID
-   */
-  private generateId(): string {
-    return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-  }
-
-  /**
-   * Get a random zone, trying to avoid already assigned zones in the same half-day
-   */
-  private getRandomZone(existingGroupes: Groupe[]): string {
-    const usedZones = existingGroupes.map(g => g.zone).filter(Boolean);
-    const availableZones = this.ZONES.filter(z => !usedZones.includes(z));
-    
-    // If all zones are used, pick any random zone
-    const zonesToPick = availableZones.length > 0 ? availableZones : this.ZONES;
-    
-    return zonesToPick[Math.floor(Math.random() * zonesToPick.length)];
   }
 
   /**
@@ -283,21 +309,32 @@ export class PlanningGeneratorService {
   planningToHistorique(planning: PlanningSemaine): HistoriqueEntry[] {
     const entries: HistoriqueEntry[] = [];
 
-    planning.entries.forEach(entry => {
-      entry.groupes.forEach(groupe => {
-        const binomes = groupe.agents.map(a => a.nom).join(', ');
-        entries.push({
-          id: this.generateId(),
-          date: this.getDateForJour(planning.dateDebut, entry.jour),
-          jour: entry.jour,
-          demiJournee: entry.demiJournee,
-          binomes,
-          zone: groupe.zone,
-          mission: groupe.mission,
-          voiture: groupe.voiture,
-          reunion: groupe.reunion,
-          commentaires: groupe.commentaires,
-          planningId: planning.id
+    planning.jours.forEach(planningJour => {
+      [planningJour.matin, planningJour.apresMidi].forEach(entry => {
+        entry.groupes.forEach(groupe => {
+          const binomes = groupe.agents.map(a => a.nom).join(', ');
+          const zone = groupe.zoneId ? ZONES.find(z => z.id === groupe.zoneId) : null;
+          const ecole = zone?.ecoles.find(e => e.id === groupe.ecoleId);
+          const mois = this.formatMois(planningJour.date);
+
+          entries.push({
+            id: this.generateId(),
+            date: planningJour.date,
+            jour: entry.jour,
+            demiJournee: entry.demiJournee,
+            agentIds: groupe.agents.map(a => a.id),
+            binomes,
+            zoneId: groupe.zoneId,
+            zoneName: zone?.nom,
+            ecoleId: groupe.ecoleId,
+            ecoleName: ecole?.nom,
+            vehicule: groupe.vehicule,
+            mission: groupe.mission,
+            reunion: groupe.reunion,
+            commentaires: groupe.commentaires,
+            planningId: planning.id,
+            mois
+          });
         });
       });
     });
@@ -306,17 +343,27 @@ export class PlanningGeneratorService {
   }
 
   /**
-   * Get date for a specific day of week in the planning week
-   * Assumes dateDebut is a Monday (start of week)
+   * Format date to YYYY-MM for monthly storage
    */
-  private getDateForJour(dateDebut: Date, jour: JourSemaine): Date {
-    // Get index of target day in JOURS_SEMAINE (LUNDI = 0, MARDI = 1, etc.)
-    const indexJour = JOURS_SEMAINE.indexOf(jour);
-    
-    // Calculate date by adding days from Monday
-    const date = new Date(dateDebut);
-    date.setDate(date.getDate() + indexJour);
-    return date;
+  private formatMois(date: Date): string {
+    const d = new Date(date);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  /**
+   * Shuffle array in place
+   */
+  private shuffleArray<T>(array: T[]): void {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+  }
+
+  /**
+   * Generate unique ID
+   */
+  private generateId(): string {
+    return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
   }
 }
-

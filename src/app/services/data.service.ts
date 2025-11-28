@@ -1,7 +1,8 @@
 import { Injectable, signal } from '@angular/core';
-import { Agent, JourSemaine, DemiJournee } from '../models/agent.model';
+import { Agent, JourSemaine, DemiJournee, AGENTS_DEFAUT, TypeContrat } from '../models/agent.model';
 import { PlanningSemaine } from '../models/planning.model';
 import { HistoriqueEntry } from '../models/historique.model';
+import { Conge } from '../models/conge.model';
 
 @Injectable({
   providedIn: 'root'
@@ -10,16 +11,18 @@ export class DataService {
   private readonly STORAGE_KEY_AGENTS = 'adammdr_agents';
   private readonly STORAGE_KEY_HISTORIQUE = 'adammdr_historique';
   private readonly STORAGE_KEY_PLANNINGS = 'adammdr_plannings';
+  private readonly STORAGE_KEY_CONGES = 'adammdr_conges';
 
   // Signals for reactive updates
   agents = signal<Agent[]>(this.loadAgents());
   historique = signal<HistoriqueEntry[]>(this.loadHistorique());
   plannings = signal<PlanningSemaine[]>(this.loadPlannings());
+  conges = signal<Conge[]>(this.loadConges());
 
   constructor() {
-    // Initialize with sample data if empty
+    // Initialize with default agents if empty
     if (this.agents().length === 0) {
-      this.initializeSampleData();
+      this.initializeDefaultAgents();
     }
   }
 
@@ -222,65 +225,131 @@ export class DataService {
     }
   }
 
-  // Initialize sample data
-  private initializeSampleData(): void {
-    const sampleAgents: Agent[] = [
-      {
-        id: '1',
-        nom: 'Agent 1',
-        actif: true,
-        disponibilites: this.generateDefaultDisponibilites(),
-        zonesHabituelles: ['Zone A'],
-        indicationsSpeciales: ''
-      },
-      {
-        id: '2',
-        nom: 'Agent 2',
-        actif: true,
-        disponibilites: this.generateDefaultDisponibilites(),
-        zonesHabituelles: ['Zone B'],
-        indicationsSpeciales: ''
-      },
-      {
-        id: '3',
-        nom: 'Agent 3',
-        actif: true,
-        disponibilites: this.generateDefaultDisponibilites(),
-        zonesHabituelles: ['Zone C'],
-        indicationsSpeciales: ''
-      },
-      {
-        id: '4',
-        nom: 'Agent 4',
-        actif: true,
-        disponibilites: this.generateDefaultDisponibilites(),
-        zonesHabituelles: ['Zone A'],
-        indicationsSpeciales: ''
-      },
-      {
-        id: '5',
-        nom: 'Agent 5',
-        actif: true,
-        disponibilites: this.generateDefaultDisponibilites(),
-        zonesHabituelles: ['Zone B'],
-        indicationsSpeciales: ''
-      }
-    ];
+  // Initialize default agents from AGENTS_DEFAUT
+  private initializeDefaultAgents(): void {
+    const agents: Agent[] = AGENTS_DEFAUT.map((agentData, index) => ({
+      id: `agent-${index + 1}`,
+      ...agentData
+    }));
 
-    this.agents.set(sampleAgents);
-    this.saveAgents(sampleAgents);
+    this.agents.set(agents);
+    this.saveAgents(agents);
   }
 
-  private generateDefaultDisponibilites() {
-    const disponibilites = [];
-    const jours = [JourSemaine.LUNDI, JourSemaine.MARDI, JourSemaine.MERCREDI, JourSemaine.JEUDI, JourSemaine.VENDREDI];
-    for (const jour of jours) {
-      disponibilites.push(
-        { jour, demiJournee: DemiJournee.MATIN, disponible: true },
-        { jour, demiJournee: DemiJournee.APRES_MIDI, disponible: true }
-      );
+  // Conges management
+  getConges(): Conge[] {
+    return this.conges();
+  }
+
+  getCongesByAgent(agentId: string): Conge[] {
+    return this.conges().filter(c => c.agentId === agentId);
+  }
+
+  getCongesByPeriod(dateDebut: Date, dateFin: Date): Conge[] {
+    return this.conges().filter(c => {
+      const debut = new Date(c.dateDebut);
+      const fin = new Date(c.dateFin);
+      return debut <= dateFin && fin >= dateDebut;
+    });
+  }
+
+  addConge(conge: Conge): void {
+    const conges = [...this.conges(), conge];
+    this.conges.set(conges);
+    this.saveConges(conges);
+  }
+
+  updateConge(conge: Conge): void {
+    const conges = this.conges().map(c => c.id === conge.id ? conge : c);
+    this.conges.set(conges);
+    this.saveConges(conges);
+  }
+
+  deleteConge(id: string): void {
+    const conges = this.conges().filter(c => c.id !== id);
+    this.conges.set(conges);
+    this.saveConges(conges);
+  }
+
+  private loadConges(): Conge[] {
+    try {
+      const data = localStorage.getItem(this.STORAGE_KEY_CONGES);
+      if (data) {
+        const conges = JSON.parse(data);
+        return conges.map((c: Conge) => ({
+          ...c,
+          dateDebut: new Date(c.dateDebut),
+          dateFin: new Date(c.dateFin),
+          dateCreation: new Date(c.dateCreation)
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading conges:', error);
     }
-    return disponibilites;
+    return [];
+  }
+
+  private saveConges(conges: Conge[]): void {
+    try {
+      localStorage.setItem(this.STORAGE_KEY_CONGES, JSON.stringify(conges));
+    } catch (error) {
+      console.error('Error saving conges:', error);
+    }
+  }
+
+  // Check if agent is available on a specific date/period (considering leaves)
+  isAgentAvailable(agentId: string, date: Date, demiJournee: DemiJournee): boolean {
+    const agent = this.agents().find(a => a.id === agentId);
+    if (!agent || !agent.actif) return false;
+
+    // Check regular availability
+    const jourSemaine = this.getJourSemaine(date);
+    const dispo = agent.disponibilites.find(
+      d => d.jour === jourSemaine && d.demiJournee === demiJournee
+    );
+    if (!dispo?.disponible) return false;
+
+    // Check leaves
+    const conges = this.conges().filter(c => {
+      const debut = new Date(c.dateDebut);
+      debut.setHours(0, 0, 0, 0);
+      const fin = new Date(c.dateFin);
+      fin.setHours(23, 59, 59, 999);
+      const checkDate = new Date(date);
+      checkDate.setHours(12, 0, 0, 0);
+      
+      if (checkDate < debut || checkDate > fin) return false;
+      if (c.agentId !== agentId) return false;
+      if (c.demiJournee === 'JOURNEE') return true;
+      if (c.demiJournee === demiJournee) return true;
+      return false;
+    });
+
+    return conges.length === 0;
+  }
+
+  private getJourSemaine(date: Date): JourSemaine {
+    const jours = [
+      JourSemaine.DIMANCHE,
+      JourSemaine.LUNDI,
+      JourSemaine.MARDI,
+      JourSemaine.MERCREDI,
+      JourSemaine.JEUDI,
+      JourSemaine.VENDREDI,
+      JourSemaine.SAMEDI
+    ];
+    return jours[date.getDay()];
+  }
+
+  // Confirm planning and save to history
+  confirmPlanning(planning: PlanningSemaine): void {
+    planning.isConfirmed = true;
+    planning.dateConfirmation = new Date();
+    
+    // Update planning
+    const plannings = this.plannings().map(p => p.id === planning.id ? planning : p);
+    this.plannings.set(plannings);
+    this.savePlannings(plannings);
   }
 }
 
