@@ -13,7 +13,7 @@ import { AuthService } from '../../services/auth.service';
       <div class="login-card">
         <div class="login-header">
           <div class="logo">
-            <span class="logo-icon">📋</span>
+            <span class="logo-icon">ADAMMDR</span>
             <h1>ADAMMDR</h1>
           </div>
           <p class="subtitle">Planning Automatique</p>
@@ -100,7 +100,10 @@ import { AuthService } from '../../services/auth.service';
     }
 
     .logo-icon {
-      font-size: 36px;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      display: none;
     }
 
     .logo h1 {

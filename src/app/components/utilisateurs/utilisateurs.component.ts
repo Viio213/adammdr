@@ -129,17 +129,17 @@ import { User, UserRole, ROLE_LABELS } from '../../models/user.model';
             <h4>Permissions du rôle sélectionné :</h4>
             <ul>
               <li *ngIf="userForm.value.role === UserRole.ADMIN">
-                ✅ Accès complet à toutes les fonctionnalités<br>
-                ✅ Gestion des utilisateurs
+                - Accès complet à toutes les fonctionnalités<br>
+                - Gestion des utilisateurs
               </li>
               <li *ngIf="userForm.value.role === UserRole.CHEF_EQUIPE">
-                ✅ Accès au planning, staff, historique, statistiques, paramètres<br>
-                ❌ Pas d'accès à la gestion des utilisateurs
+                - Accès au planning, staff, historique, statistiques, paramètres<br>
+                - Pas d'accès à la gestion des utilisateurs
               </li>
               <li *ngIf="userForm.value.role === UserRole.UTILISATEUR">
-                ✅ Consultation du planning uniquement<br>
-                ❌ Ne peut pas générer de planning<br>
-                ❌ Pas d'accès aux autres fonctionnalités
+                - Consultation du planning uniquement<br>
+                - Ne peut pas générer de planning<br>
+                - Pas d'accès aux autres fonctionnalités
               </li>
             </ul>
           </div>

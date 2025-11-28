@@ -35,7 +35,7 @@ import { ZONES } from '../../models/zone.model';
               *ngIf="canEdit && planningActuel() && !planningActuel()!.isConfirmed"
               class="btn btn-success" 
               (click)="confirmerPlanning()">
-              ✓ Confirmer le Planning
+              Confirmer le Planning
             </button>
             <button 
               class="btn btn-secondary" 
@@ -53,7 +53,7 @@ import { ZONES } from '../../models/zone.model';
             <span>au</span>
             <strong>{{ formatDateShort(planningActuel()!.dateFin) }}</strong>
             <span *ngIf="planningActuel()!.isConfirmed" class="badge badge-success">
-              ✓ Confirmé
+              Confirmé
             </span>
             <span *ngIf="!planningActuel()!.isConfirmed" class="badge badge-warning">
               Brouillon
@@ -446,17 +446,18 @@ import { ZONES } from '../../models/zone.model';
     }
     
     thead tr {
-      background: linear-gradient(135deg, #2d5016 0%, #3d6b1e 100%);
+      background: #e2e8f0;
     }
     
     thead th {
-      color: #fff;
+      color: #000;
       padding: 14px 10px;
       text-align: center;
-      font-weight: 600;
+      font-weight: 700;
       font-size: 12px;
       letter-spacing: 0.5px;
-      border-right: 1px solid rgba(255,255,255,0.2);
+      border-right: 1px solid #cbd5e1;
+      border-bottom: 2px solid #94a3b8;
     }
     
     thead th:last-child { border-right: none; }
@@ -661,7 +662,7 @@ export class PlanningComponent {
     const updatedPlanning = this.planningGenerator.regenerateJour(planning, jour);
     
     // Update in storage
-    const plannings = this.dataService.getPlannings().map(p => 
+    const plannings = this.dataService.getPlannings().map((p: PlanningSemaine) => 
       p.id === updatedPlanning.id ? updatedPlanning : p
     );
     this.dataService.plannings.set(plannings);

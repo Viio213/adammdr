@@ -18,21 +18,18 @@ import {
       <!-- Quick Stats Cards -->
       <div class="stats-cards">
         <div class="stat-card">
-          <div class="stat-icon">👥</div>
           <div class="stat-info">
             <span class="stat-value">{{ statistiquesAgents().length }}</span>
             <span class="stat-label">Agents actifs</span>
           </div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon">🚗</div>
           <div class="stat-info">
             <span class="stat-value">{{ getTotalVehicule() }}</span>
             <span class="stat-label">Sorties véhicule</span>
           </div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon">🌳</div>
           <div class="stat-info">
             <span class="stat-value">{{ getTotalExterieur() }}</span>
             <span class="stat-label">Sorties extérieur</span>
@@ -43,7 +40,7 @@ import {
       <!-- Statistiques Binômes -->
       <div class="card">
         <div class="card-header">
-          <h2>🤝 Paires d'agents les plus fréquentes</h2>
+          <h2>Paires d'agents les plus fréquentes</h2>
         </div>
         <div class="stats-content">
           <p class="stats-description">
@@ -83,7 +80,7 @@ import {
       <!-- Statistiques Véhicules -->
       <div class="card">
         <div class="card-header">
-          <h2>🚗 Répartition des véhicules</h2>
+          <h2>Répartition des véhicules</h2>
         </div>
         <div class="stats-content">
           <p class="stats-description">
@@ -127,7 +124,7 @@ import {
       <!-- Statistiques Zones Extérieures -->
       <div class="card">
         <div class="card-header">
-          <h2>🌳 Agents en zones extérieures</h2>
+          <h2>Agents en zones extérieures</h2>
         </div>
         <div class="stats-content">
           <p class="stats-description">
@@ -171,7 +168,7 @@ import {
       <!-- Statistiques par Agent -->
       <div class="card">
         <div class="card-header">
-          <h2>📊 Détails par Agent</h2>
+          <h2>Détails par Agent</h2>
         </div>
         <div class="stats-content">
           <div class="table-wrapper">
@@ -218,7 +215,7 @@ import {
       <!-- Statistiques Zones -->
       <div class="card">
         <div class="card-header">
-          <h2>📍 Répartition par Zone</h2>
+          <h2>Répartition par Zone</h2>
         </div>
         <div class="stats-content">
           <div class="zones-grid">
@@ -257,10 +254,6 @@ import {
       align-items: center;
       gap: 16px;
       box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-    }
-
-    .stat-icon {
-      font-size: 32px;
     }
 
     .stat-info {
