@@ -17,8 +17,8 @@ export class ExcelExportService {
   exportPlanningToExcel(planning: PlanningSemaine): void {
     const data: any[] = [];
 
-    // Header row
-    data.push(['JOUR', 'Demi-journée', 'Binômes', 'Zone', 'École', 'Mission', 'Commentaires']);
+    // Header row (uppercase for visibility)
+    data.push(['JOUR', 'BINÔMES', 'ZONES', 'ECOLE', 'MISSION', 'VOITURE', 'COMMENTAIRES']);
 
     // Only active days (Monday to Friday)
     const joursActifs = JOURS_SEMAINE.slice(0, 5);
@@ -27,28 +27,31 @@ export class ExcelExportService {
       for (const demiJournee of [DemiJournee.MATIN, DemiJournee.APRES_MIDI]) {
         const entry = planning.entries.find(e => e.jour === jour && e.demiJournee === demiJournee);
         
+        const demiJourneeLabel = demiJournee === DemiJournee.MATIN ? 'Matin' : 'Après-midi';
+        
         if (entry && entry.groupes.length > 0) {
           entry.groupes.forEach((groupe, index) => {
             const binomes = groupe.agents.map(a => a.nom).join(', ');
             data.push([
-              index === 0 ? jour : '', // Only show day on first row
-              index === 0 ? (demiJournee === DemiJournee.MATIN ? 'Matin' : 'Après-midi') : '',
+              index === 0 ? `${jour} - ${demiJourneeLabel}` : '',
               binomes,
               groupe.zone || '',
-              groupe.mission || '',
               groupe.reunion || '',
+              groupe.mission || '',
+              groupe.voiture || '',
               groupe.commentaires || ''
             ]);
           });
         } else {
           data.push([
-            jour,
-            demiJournee === DemiJournee.MATIN ? 'Matin' : 'Après-midi',
-            'Aucun binôme',
-            '', '', '', ''
+            `${jour} - ${demiJourneeLabel}`,
+            '(Aucun binôme)',
+            '', '', '', '', ''
           ]);
         }
       }
+      // Add empty row between days for readability
+      data.push(['', '', '', '', '', '', '']);
     }
 
     // Create worksheet
@@ -56,13 +59,13 @@ export class ExcelExportService {
 
     // Set column widths
     ws['!cols'] = [
-      { wch: 12 },  // JOUR
-      { wch: 12 },  // Demi-journée
-      { wch: 25 },  // Binômes
-      { wch: 10 },  // Zone
-      { wch: 10 },  // École
-      { wch: 20 },  // Mission
-      { wch: 25 }   // Commentaires
+      { wch: 22 },  // JOUR
+      { wch: 28 },  // BINÔMES
+      { wch: 12 },  // ZONES
+      { wch: 12 },  // ECOLE
+      { wch: 20 },  // MISSION
+      { wch: 12 },  // VOITURE
+      { wch: 28 }   // COMMENTAIRES
     ];
 
     // Create workbook
@@ -83,7 +86,7 @@ export class ExcelExportService {
     const rows: any[] = [];
 
     // Header row
-    rows.push(['Date', 'Jour', 'Demi-journée', 'Binômes', 'Zone', 'Mission', 'Réunion', 'Commentaires']);
+    rows.push(['DATE', 'JOUR', 'DEMI-JOURNÉE', 'BINÔMES', 'ZONE', 'ECOLE', 'MISSION', 'VOITURE', 'COMMENTAIRES']);
 
     // Data rows
     data.forEach(entry => {
@@ -93,8 +96,9 @@ export class ExcelExportService {
         entry.demiJournee === 'MATIN' ? 'Matin' : 'Après-midi',
         entry.binomes,
         entry.zone || '',
-        entry.mission || '',
         entry.reunion || '',
+        entry.mission || '',
+        entry.voiture || '',
         entry.commentaires || ''
       ]);
     });
@@ -106,11 +110,12 @@ export class ExcelExportService {
     ws['!cols'] = [
       { wch: 12 },  // Date
       { wch: 12 },  // Jour
-      { wch: 12 },  // Demi-journée
-      { wch: 30 },  // Binômes
+      { wch: 14 },  // Demi-journée
+      { wch: 28 },  // Binômes
       { wch: 10 },  // Zone
-      { wch: 20 },  // Mission
-      { wch: 20 },  // Réunion
+      { wch: 12 },  // Ecole
+      { wch: 18 },  // Mission
+      { wch: 12 },  // Voiture
       { wch: 25 }   // Commentaires
     ];
 

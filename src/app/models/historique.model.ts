@@ -9,6 +9,7 @@ export interface HistoriqueEntry {
   binomes: string; // Names of agents separated by comma
   zone?: string;
   mission?: string;
+  voiture?: string;
   reunion?: string;
   commentaires?: string;
   planningId: string; // Reference to the planning that generated this entry

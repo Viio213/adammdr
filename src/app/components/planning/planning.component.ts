@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { PlanningGeneratorService } from '../../services/planning-generator.service';
 import { DataService } from '../../services/data.service';
 import { ExcelExportService } from '../../services/excel-export.service';
+import { AuthService } from '../../services/auth.service';
 import { PlanningSemaine, Groupe } from '../../models/planning.model';
 import { JourSemaine, DemiJournee } from '../../models/agent.model';
 
@@ -27,11 +28,15 @@ interface DisplayRow {
           <h2>Planning de la Semaine</h2>
           <div class="header-actions">
             <input 
+              *ngIf="canGeneratePlanning"
               type="date" 
               [(ngModel)]="dateDebutSemaine" 
               class="date-input"
             />
-            <button class="btn btn-primary" (click)="genererPlanning()">
+            <button 
+              *ngIf="canGeneratePlanning"
+              class="btn btn-primary" 
+              (click)="genererPlanning()">
               Générer Planning
             </button>
             <button 
@@ -60,6 +65,7 @@ interface DisplayRow {
                   <th class="th-zones">Zones</th>
                   <th class="th-ecole">Ecole</th>
                   <th class="th-mission">Mission</th>
+                  <th class="th-voiture">Voiture</th>
                   <th class="th-commentaires">Commentaires</th>
                 </tr>
               </thead>
@@ -75,7 +81,7 @@ interface DisplayRow {
                   <!-- Demi-journée header row -->
                   <ng-container *ngIf="row.type === 'demijournee'">
                     <td class="td-demijournee">{{ row.demiJournee === 'MATIN' ? 'Matin' : 'Après-midi' }}</td>
-                    <td colspan="4" class="td-select-empty">
+                    <td colspan="5" class="td-select-empty">
                       <select class="mini-select"><option>--</option></select>
                     </td>
                   </ng-container>
@@ -86,28 +92,40 @@ interface DisplayRow {
                       <div class="agent-initials">{{ getAgentsInitiales(row.groupe.agents) }}</div>
                     </td>
                     <td class="td-zones">
-                      <select [(ngModel)]="row.groupe.zone" class="zone-dropdown" [class.filled]="row.groupe.zone">
-                        <option value="">Zone</option>
-                        <option value="Zone 1">Zone 1</option>
-                        <option value="Zone 2">Zone 2</option>
-                        <option value="Zone 3">Zone 3</option>
-                        <option value="Zone 4">Zone 4</option>
-                      </select>
+                      <ng-container *ngIf="canGeneratePlanning; else readonlyZone">
+                        <select [(ngModel)]="row.groupe.zone" class="zone-dropdown" [class.filled]="row.groupe.zone">
+                          <option value="">Zone</option>
+                          <option value="Zone 1">Zone 1</option>
+                          <option value="Zone 2">Zone 2</option>
+                          <option value="Zone 3">Zone 3</option>
+                          <option value="Zone 4">Zone 4</option>
+                        </select>
+                      </ng-container>
+                      <ng-template #readonlyZone>
+                        <span class="readonly-value">{{ row.groupe.zone || '-' }}</span>
+                      </ng-template>
                     </td>
                     <td class="td-ecole">
-                      <input type="text" [(ngModel)]="row.groupe.mission" class="cell-input small" />
+                      <input *ngIf="canGeneratePlanning" type="text" [(ngModel)]="row.groupe.mission" class="cell-input small" />
+                      <span *ngIf="!canGeneratePlanning" class="readonly-value">{{ row.groupe.mission || '-' }}</span>
                     </td>
                     <td class="td-mission">
-                      <input type="text" [(ngModel)]="row.groupe.reunion" class="cell-input" />
+                      <input *ngIf="canGeneratePlanning" type="text" [(ngModel)]="row.groupe.reunion" class="cell-input" />
+                      <span *ngIf="!canGeneratePlanning" class="readonly-value">{{ row.groupe.reunion || '-' }}</span>
+                    </td>
+                    <td class="td-voiture">
+                      <input *ngIf="canGeneratePlanning" type="text" [(ngModel)]="row.groupe.voiture" class="cell-input small" />
+                      <span *ngIf="!canGeneratePlanning" class="readonly-value">{{ row.groupe.voiture || '-' }}</span>
                     </td>
                     <td class="td-commentaires">
-                      <input type="text" [(ngModel)]="row.groupe.commentaires" class="cell-input" />
+                      <input *ngIf="canGeneratePlanning" type="text" [(ngModel)]="row.groupe.commentaires" class="cell-input" />
+                      <span *ngIf="!canGeneratePlanning" class="readonly-value">{{ row.groupe.commentaires || '-' }}</span>
                     </td>
                   </ng-container>
                   
                   <!-- Empty row -->
                   <ng-container *ngIf="row.type === 'empty'">
-                    <td class="td-empty" colspan="5">Aucun binôme</td>
+                    <td class="td-empty" colspan="6">Aucun binôme</td>
                   </ng-container>
                 </tr>
               </tbody>
@@ -237,8 +255,9 @@ interface DisplayRow {
     .th-binomes { width: 90px; }
     .th-zones { width: 100px; }
     .th-ecole { width: 60px; }
-    .th-mission { min-width: 180px; }
-    .th-commentaires { min-width: 180px; }
+    .th-mission { min-width: 150px; }
+    .th-voiture { width: 80px; }
+    .th-commentaires { min-width: 150px; }
     
     /* Jour cell */
     .td-jour {
@@ -370,6 +389,13 @@ interface DisplayRow {
     .td-ecole {
       text-align: center;
     }
+
+    .readonly-value {
+      display: block;
+      padding: 7px 10px;
+      font-size: 12px;
+      color: #333;
+    }
     
     /* Empty row */
     .row-empty {
@@ -426,6 +452,9 @@ export class PlanningComponent {
   private planningGenerator = inject(PlanningGeneratorService);
   private dataService = inject(DataService);
   private excelExport = inject(ExcelExportService);
+  private authService = inject(AuthService);
+
+  canGeneratePlanning = this.authService.hasPermission('canGeneratePlanning');
 
   planningActuel = signal<PlanningSemaine | null>(null);
   dateDebutSemaine = this.getLundiSemaine(new Date()).toISOString().split('T')[0];

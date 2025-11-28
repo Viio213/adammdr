@@ -294,6 +294,7 @@ export class PlanningGeneratorService {
           binomes,
           zone: groupe.zone,
           mission: groupe.mission,
+          voiture: groupe.voiture,
           reunion: groupe.reunion,
           commentaires: groupe.commentaires,
           planningId: planning.id

@@ -6,6 +6,7 @@ export interface Groupe {
   agents: Agent[];
   zone?: string;
   mission?: string;
+  voiture?: string;
   reunion?: string;
   commentaires?: string;
 }
