@@ -310,6 +310,20 @@ export class DataService {
     return this.conges();
   }
 
+  /**
+   * Refresh conges from Supabase database
+   */
+  async refreshConges(): Promise<Conge[]> {
+    try {
+      const conges = await this.supabase.getConges();
+      this.conges.set(conges);
+      return conges;
+    } catch (error) {
+      console.error('Error refreshing conges from Supabase:', error);
+      return this.conges();
+    }
+  }
+
   async addConge(conge: Conge): Promise<void> {
     try {
       const newConge = await this.supabase.createConge(conge);

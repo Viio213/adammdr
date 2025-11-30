@@ -490,10 +490,11 @@ export class CongesComponent {
     this.chargerDonnees();
   }
 
-  chargerDonnees(): void {
+  async chargerDonnees(): Promise<void> {
     this.agents.set(this.dataService.getAgents());
     
-    let conges = this.dataService.getConges();
+    // Load conges from Supabase database
+    let conges = await this.dataService.refreshConges();
     
     // Filter for users to only see their own leaves
     if (!this.canViewAllConges) {
