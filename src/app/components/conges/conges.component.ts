@@ -146,10 +146,13 @@ import { Agent } from '../../models/agent.model';
           <!-- Agent selection -->
           <div class="form-group">
             <label class="form-label">Agent *</label>
-            <select formControlName="agentId" class="form-control">
+            <select formControlName="agentId" class="form-control" [attr.disabled]="!canViewAllConges && monAgent() ? true : null">
               <option value="">Sélectionner un agent</option>
-              <option *ngFor="let agent of agents()" [value]="agent.id">{{ agent.nom }}</option>
+              <option *ngFor="let agent of agentsSelectionnables()" [value]="agent.id">{{ agent.nom }}</option>
             </select>
+            <small *ngIf="!canViewAllConges && monAgent()" class="form-hint">
+              Vous ne pouvez demander un congé que pour vous-même
+            </small>
           </div>
 
           <div class="form-group">
@@ -478,6 +481,16 @@ export class CongesComponent {
     
     // Fallback: check if an agent has this user's ID
     return this.agents().find(a => a.userId === user.id) || null;
+  });
+
+  // Agents available for selection in dropdown
+  // Admin/Chef: all agents | Agent: only their own
+  agentsSelectionnables = computed(() => {
+    if (this.canViewAllConges) {
+      return this.agents();
+    }
+    const agent = this.monAgent();
+    return agent ? [agent] : [];
   });
 
   // Count pending requests
