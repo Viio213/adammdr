@@ -143,8 +143,8 @@ import { Agent } from '../../models/agent.model';
           <button class="btn-close" (click)="fermerModal()">×</button>
         </div>
         <form [formGroup]="congeForm" (ngSubmit)="sauvegarderConge()">
-          <!-- Agent selection (admin/chef only) -->
-          <div class="form-group" *ngIf="canViewAllConges">
+          <!-- Agent selection -->
+          <div class="form-group">
             <label class="form-label">Agent *</label>
             <select formControlName="agentId" class="form-control">
               <option value="">Sélectionner un agent</option>
@@ -478,7 +478,7 @@ export class CongesComponent {
   });
 
   congeForm: FormGroup = this.fb.group({
-    agentId: ['', this.canViewAllConges ? Validators.required : []],
+    agentId: ['', Validators.required],
     type: [TypeConge.CONGE_ANNUEL, Validators.required],
     dateDebut: ['', Validators.required],
     dateFin: ['', Validators.required],
@@ -641,20 +641,11 @@ export class CongesComponent {
 
     const formValue = this.congeForm.value;
     
-    // Determine agent
-    let agentId: string;
-    let agentNom: string;
-    
-    if (this.canViewAllConges) {
-      agentId = formValue.agentId;
-      const agent = this.agents().find(a => a.id === agentId);
-      agentNom = agent?.nom || '';
-    } else {
-      const agent = this.monAgent();
-      if (!agent) return;
-      agentId = agent.id;
-      agentNom = agent.nom;
-    }
+    // Get agent from form
+    const agentId = formValue.agentId;
+    const agent = this.agents().find(a => a.id === agentId);
+    if (!agent) return;
+    const agentNom = agent.nom;
 
     // Determine initial status
     // If admin/chef creates the leave, it's auto-validated

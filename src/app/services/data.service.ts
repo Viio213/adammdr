@@ -12,6 +12,7 @@ export class DataService {
   private readonly STORAGE_KEY_HISTORIQUE = 'adammdr_historique';
   private readonly STORAGE_KEY_PLANNINGS = 'adammdr_plannings';
   private readonly STORAGE_KEY_CONGES = 'adammdr_conges';
+  private readonly STORAGE_KEY_LAST_PLANNING_ID = 'adammdr_last_planning_id';
 
   // Signals for reactive updates
   agents = signal<Agent[]>(this.loadAgents());
@@ -95,19 +96,32 @@ export class DataService {
     
     this.plannings.set(plannings);
     this.savePlannings(plannings);
+    
+    // Save the ID of the current planning for quick access
+    this.setLastPlanningId(planning.id);
   }
 
   updatePlanning(planning: PlanningSemaine): void {
     const plannings = this.plannings().map(p => p.id === planning.id ? planning : p);
     this.plannings.set(plannings);
     this.savePlannings(plannings);
+    
+    // Update last planning ID
+    this.setLastPlanningId(planning.id);
   }
 
   getPlanningActuel(): PlanningSemaine | null {
+    // First, try to get the last viewed planning by ID
+    const lastId = this.getLastPlanningId();
+    if (lastId) {
+      const lastPlanning = this.plannings().find(p => p.id === lastId);
+      if (lastPlanning) return lastPlanning;
+    }
+    
     const aujourdhui = new Date();
     aujourdhui.setHours(0, 0, 0, 0);
     
-    // First try to find planning for current week
+    // Then try to find planning for current week
     const currentWeekPlanning = this.plannings().find(p => {
       const debut = new Date(p.dateDebut);
       debut.setHours(0, 0, 0, 0);
@@ -116,14 +130,37 @@ export class DataService {
       return aujourdhui >= debut && aujourdhui <= fin;
     });
     
-    if (currentWeekPlanning) return currentWeekPlanning;
+    if (currentWeekPlanning) {
+      this.setLastPlanningId(currentWeekPlanning.id);
+      return currentWeekPlanning;
+    }
     
     // Otherwise return the most recently generated planning
     const sortedPlannings = [...this.plannings()].sort((a, b) => 
       new Date(b.dateGeneration).getTime() - new Date(a.dateGeneration).getTime()
     );
     
-    return sortedPlannings[0] || null;
+    const mostRecent = sortedPlannings[0] || null;
+    if (mostRecent) {
+      this.setLastPlanningId(mostRecent.id);
+    }
+    return mostRecent;
+  }
+
+  private getLastPlanningId(): string | null {
+    try {
+      return localStorage.getItem(this.STORAGE_KEY_LAST_PLANNING_ID);
+    } catch {
+      return null;
+    }
+  }
+
+  private setLastPlanningId(id: string): void {
+    try {
+      localStorage.setItem(this.STORAGE_KEY_LAST_PLANNING_ID, id);
+    } catch {
+      // Silently fail
+    }
   }
 
   getPlanningByDate(dateDebut: Date): PlanningSemaine | null {
@@ -193,18 +230,42 @@ export class DataService {
           dateDebut: new Date(p.dateDebut),
           dateFin: new Date(p.dateFin),
           dateGeneration: new Date(p.dateGeneration),
-          entries: p.entries.map(e => ({
+          dateConfirmation: p.dateConfirmation ? new Date(p.dateConfirmation) : undefined,
+          // Restore jours array with proper date conversion
+          jours: p.jours?.map(j => ({
+            ...j,
+            date: new Date(j.date),
+            matin: {
+              ...j.matin,
+              groupes: j.matin.groupes.map(g => ({
+                ...g,
+                agents: g.agents.map(a => ({
+                  ...a,
+                  disponibilites: a.disponibilites?.map(d => ({ ...d })) || []
+                }))
+              }))
+            },
+            apresMidi: {
+              ...j.apresMidi,
+              groupes: j.apresMidi.groupes.map(g => ({
+                ...g,
+                agents: g.agents.map(a => ({
+                  ...a,
+                  disponibilites: a.disponibilites?.map(d => ({ ...d })) || []
+                }))
+              }))
+            }
+          })) || [],
+          entries: p.entries?.map(e => ({
             ...e,
             groupes: e.groupes.map(g => ({
               ...g,
               agents: g.agents.map(a => ({
                 ...a,
-                disponibilites: a.disponibilites.map(d => ({
-                  ...d
-                }))
+                disponibilites: a.disponibilites?.map(d => ({ ...d })) || []
               }))
             }))
-          }))
+          })) || []
         }));
       }
     } catch (error) {

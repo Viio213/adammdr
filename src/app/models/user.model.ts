@@ -64,13 +64,13 @@ export const ROLE_PERMISSIONS = {
     canGeneratePlanning: false, // Cannot generate planning
     canViewStaff: false,       // Cannot view staff management
     canEditStaff: false,       // Cannot edit staff
-    canViewHistorique: true,   // Can view historique (read-only)
+    canViewHistorique: false,  // Cannot view historique
     canEditHistorique: false,  // Cannot edit historique
-    canViewStatistiques: true, // Can view statistics
+    canViewStatistiques: false, // Cannot view statistics
     canViewParametres: false,  // Cannot access settings
     canManageUsers: false,     // Cannot manage users
     canValidateConge: false,   // Cannot validate leave requests
     canSubmitConge: true,      // Can submit leave requests
-    canExportPdf: true         // Can export to PDF
+    canExportPdf: false        // Cannot export to PDF
   }
 };
