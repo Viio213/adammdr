@@ -2,7 +2,9 @@ import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { AuthService } from '../../services/auth.service';
+import { DataService } from '../../services/data.service';
 import { User, UserRole, ROLE_LABELS } from '../../models/user.model';
+import { Agent, JourSemaine, DemiJournee, Disponibilite, TypeContrat } from '../../models/agent.model';
 
 @Component({
   selector: 'app-utilisateurs',
@@ -26,6 +28,7 @@ import { User, UserRole, ROLE_LABELS } from '../../models/user.model';
                 <th>Prénom</th>
                 <th>Identifiant</th>
                 <th>Rôle</th>
+                <th>Agent lié</th>
                 <th>Statut</th>
                 <th>Dernière connexion</th>
                 <th>Actions</th>
@@ -40,6 +43,12 @@ import { User, UserRole, ROLE_LABELS } from '../../models/user.model';
                   <span [class]="'badge ' + getRoleBadgeClass(user.role)">
                     {{ getRoleLabel(user.role) }}
                   </span>
+                </td>
+                <td>
+                  <span *ngIf="getAgentName(user.agentId)" class="badge badge-agent">
+                    {{ getAgentName(user.agentId) }}
+                  </span>
+                  <span *ngIf="!user.agentId" class="text-muted">Non lié</span>
                 </td>
                 <td>
                   <span [class]="'badge ' + (user.actif ? 'badge-success' : 'badge-danger')">
@@ -66,7 +75,7 @@ import { User, UserRole, ROLE_LABELS } from '../../models/user.model';
                 </td>
               </tr>
               <tr *ngIf="users().length === 0">
-                <td colspan="7" class="text-center">Aucun utilisateur</td>
+                <td colspan="8" class="text-center">Aucun utilisateur</td>
               </tr>
             </tbody>
           </table>
@@ -122,6 +131,47 @@ import { User, UserRole, ROLE_LABELS } from '../../models/user.model';
                 <option [ngValue]="true">Actif</option>
                 <option [ngValue]="false">Inactif</option>
               </select>
+            </div>
+          </div>
+
+          <!-- Agent linking section -->
+          <div class="agent-section">
+            <label class="form-label">Lier à un agent</label>
+            <div class="agent-options">
+              <label class="radio-option">
+                <input type="radio" formControlName="agentLinkType" value="none" />
+                <span>Aucun agent</span>
+              </label>
+              <label class="radio-option">
+                <input type="radio" formControlName="agentLinkType" value="existing" />
+                <span>Agent existant</span>
+              </label>
+              <label class="radio-option">
+                <input type="radio" formControlName="agentLinkType" value="new" />
+                <span>Créer un nouvel agent</span>
+              </label>
+            </div>
+
+            <!-- Existing agent dropdown -->
+            <div class="form-group" *ngIf="userForm.value.agentLinkType === 'existing'">
+              <label class="form-label">Sélectionner un agent</label>
+              <select formControlName="agentId" class="form-control">
+                <option value="">-- Choisir un agent --</option>
+                <option *ngFor="let agent of agentsDisponibles()" [value]="agent.id">
+                  {{ agent.nom }} ({{ agent.typeContrat }})
+                </option>
+              </select>
+              <small class="form-hint" *ngIf="agentsDisponibles().length === 0">
+                Tous les agents sont déjà liés à un utilisateur
+              </small>
+            </div>
+
+            <!-- New agent info -->
+            <div class="new-agent-info" *ngIf="userForm.value.agentLinkType === 'new'">
+              <p class="info-text">
+                <span class="info-icon">ℹ️</span>
+                Un nouvel agent sera créé automatiquement avec les informations du compte (nom, prénom).
+              </p>
             </div>
           </div>
 
@@ -399,18 +449,87 @@ import { User, UserRole, ROLE_LABELS } from '../../models/user.model';
       font-size: 14px;
     }
 
+    .badge-agent {
+      background: #ecfdf5;
+      color: #059669;
+    }
+
+    .text-muted {
+      color: #94a3b8;
+      font-style: italic;
+      font-size: 13px;
+    }
+
+    .agent-section {
+      background: #f8fafc;
+      border-radius: 10px;
+      padding: 16px;
+      margin: 16px 0;
+      border: 1px solid #e2e8f0;
+    }
+
+    .agent-options {
+      display: flex;
+      gap: 20px;
+      margin: 12px 0;
+      flex-wrap: wrap;
+    }
+
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      color: #475569;
+    }
+
+    .radio-option input[type="radio"] {
+      width: 18px;
+      height: 18px;
+      accent-color: #3b82f6;
+    }
+
+    .new-agent-info {
+      margin-top: 12px;
+    }
+
+    .info-text {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1e40af;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin: 0;
+    }
+
+    .info-icon {
+      font-size: 16px;
+    }
+
     @media (max-width: 768px) {
       .form-row {
         grid-template-columns: 1fr;
+      }
+
+      .agent-options {
+        flex-direction: column;
+        gap: 10px;
       }
     }
   `]
 })
 export class UtilisateursComponent {
   private authService = inject(AuthService);
+  private dataService = inject(DataService);
   private fb = inject(FormBuilder);
 
   users = signal<User[]>([]);
+  agents = signal<Agent[]>([]);
   afficherModal = false;
   afficherModalPassword = false;
   utilisateurEnEdition: User | null = null;
@@ -427,15 +546,41 @@ export class UtilisateursComponent {
     username: ['', Validators.required],
     password: ['', Validators.required],
     role: [UserRole.UTILISATEUR, Validators.required],
-    actif: [true]
+    actif: [true],
+    agentLinkType: ['none'],
+    agentId: ['']
   });
+
+  // Agents not already linked to a user
+  agentsDisponibles = signal<Agent[]>([]);
 
   constructor() {
     this.chargerUtilisateurs();
+    this.chargerAgents();
   }
 
   chargerUtilisateurs(): void {
     this.users.set(this.authService.getUsers());
+  }
+
+  chargerAgents(): void {
+    this.agents.set(this.dataService.getAgents());
+    this.updateAgentsDisponibles();
+  }
+
+  updateAgentsDisponibles(excludeUserId?: string): void {
+    const usersWithAgents = this.users()
+      .filter(u => u.agentId && u.id !== excludeUserId)
+      .map(u => u.agentId);
+    
+    const disponibles = this.agents().filter(a => !usersWithAgents.includes(a.id));
+    this.agentsDisponibles.set(disponibles);
+  }
+
+  getAgentName(agentId?: string): string {
+    if (!agentId) return '';
+    const agent = this.agents().find(a => a.id === agentId);
+    return agent?.nom || '';
   }
 
   isCurrentUser(user: User): boolean {
@@ -467,7 +612,13 @@ export class UtilisateursComponent {
 
   ouvrirModalAjout(): void {
     this.utilisateurEnEdition = null;
-    this.userForm.reset({ role: UserRole.UTILISATEUR, actif: true });
+    this.updateAgentsDisponibles();
+    this.userForm.reset({ 
+      role: UserRole.UTILISATEUR, 
+      actif: true, 
+      agentLinkType: 'none',
+      agentId: ''
+    });
     this.userForm.get('password')?.setValidators(Validators.required);
     this.userForm.get('username')?.enable();
     this.afficherModal = true;
@@ -475,12 +626,22 @@ export class UtilisateursComponent {
 
   editerUtilisateur(user: User): void {
     this.utilisateurEnEdition = user;
+    this.updateAgentsDisponibles(user.id);
+    
+    // Determine current agent link type
+    let agentLinkType = 'none';
+    if (user.agentId) {
+      agentLinkType = 'existing';
+    }
+    
     this.userForm.patchValue({
       nom: user.nom,
       prenom: user.prenom,
       username: user.username,
       role: user.role,
-      actif: user.actif
+      actif: user.actif,
+      agentLinkType: agentLinkType,
+      agentId: user.agentId || ''
     });
     this.userForm.get('password')?.clearValidators();
     this.userForm.get('password')?.updateValueAndValidity();
@@ -499,6 +660,19 @@ export class UtilisateursComponent {
     if (!this.userForm.valid) return;
 
     const formValue = this.userForm.value;
+    let agentId: string | undefined = undefined;
+
+    // Determine agent ID based on link type
+    if (formValue.agentLinkType === 'existing' && formValue.agentId) {
+      agentId = formValue.agentId;
+    } else if (formValue.agentLinkType === 'new') {
+      agentId = this.createNewAgent(formValue.nom, formValue.prenom);
+    }
+
+    // Unlink previous agent if changing
+    if (this.utilisateurEnEdition?.agentId && this.utilisateurEnEdition.agentId !== agentId) {
+      this.unlinkAgent(this.utilisateurEnEdition.agentId);
+    }
 
     if (this.utilisateurEnEdition) {
       const updatedUser: User = {
@@ -506,19 +680,27 @@ export class UtilisateursComponent {
         nom: formValue.nom,
         prenom: formValue.prenom,
         role: formValue.role,
-        actif: formValue.actif
+        actif: formValue.actif,
+        agentId: agentId
       };
       this.authService.updateUser(updatedUser);
+      
+      // Update agent link
+      if (agentId) {
+        this.linkAgentToUser(agentId, updatedUser.id);
+      }
     } else {
+      const userId = this.generateId();
       const newUser: User = {
-        id: this.generateId(),
+        id: userId,
         username: formValue.username,
         password: formValue.password,
         nom: formValue.nom,
         prenom: formValue.prenom,
         role: formValue.role,
         actif: formValue.actif,
-        dateCreation: new Date()
+        dateCreation: new Date(),
+        agentId: agentId
       };
       
       const result = this.authService.addUser(newUser);
@@ -526,10 +708,61 @@ export class UtilisateursComponent {
         alert(result.message);
         return;
       }
+
+      // Update agent link with the new user ID
+      if (agentId) {
+        this.linkAgentToUser(agentId, userId);
+      }
     }
 
     this.chargerUtilisateurs();
+    this.chargerAgents();
     this.fermerModal();
+  }
+
+  private createNewAgent(nom: string, prenom: string): string {
+    const initials = `${prenom.charAt(0)}${nom.charAt(0)}`.toUpperCase();
+    const jours: JourSemaine[] = [
+      JourSemaine.LUNDI, 
+      JourSemaine.MARDI, 
+      JourSemaine.MERCREDI, 
+      JourSemaine.JEUDI, 
+      JourSemaine.VENDREDI
+    ];
+    
+    const disponibilites: Disponibilite[] = [];
+    jours.forEach(jour => {
+      disponibilites.push({ jour, demiJournee: DemiJournee.MATIN, disponible: true });
+      disponibilites.push({ jour, demiJournee: DemiJournee.APRES_MIDI, disponible: true });
+    });
+
+    const newAgent: Agent = {
+      id: `agent-${Date.now()}`,
+      nom: initials,
+      nomComplet: `${prenom} ${nom}`,
+      typeContrat: TypeContrat.TEMPS_PLEIN,
+      disponibilites: disponibilites,
+      actif: true
+    };
+    
+    this.dataService.addAgent(newAgent);
+    return newAgent.id;
+  }
+
+  private linkAgentToUser(agentId: string, userId: string): void {
+    const agent = this.agents().find(a => a.id === agentId);
+    if (agent) {
+      const updatedAgent = { ...agent, userId: userId };
+      this.dataService.updateAgent(updatedAgent);
+    }
+  }
+
+  private unlinkAgent(agentId: string): void {
+    const agent = this.agents().find(a => a.id === agentId);
+    if (agent) {
+      const updatedAgent = { ...agent, userId: undefined };
+      this.dataService.updateAgent(updatedAgent);
+    }
   }
 
   supprimerUtilisateur(id: string): void {
