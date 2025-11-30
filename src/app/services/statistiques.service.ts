@@ -5,7 +5,8 @@ import {
   StatistiqueZone, 
   StatistiqueAgent,
   StatistiqueVehicule,
-  StatistiqueExterieur
+  StatistiqueExterieur,
+  StatistiqueEcole
 } from '../models/statistiques.model';
 import { ZONES } from '../models/zone.model';
 import { DataService } from './data.service';
@@ -206,6 +207,44 @@ export class StatistiquesService {
   }
 
   /**
+   * Get statistics about schools
+   */
+  getStatistiquesEcoles(): StatistiqueEcole[] {
+    const historique = this.dataService.getHistorique();
+    const ecolesMap = new Map<string, StatistiqueEcole>();
+
+    // Initialize all schools from zones
+    ZONES.forEach(zone => {
+      zone.ecoles.forEach(ecole => {
+        ecolesMap.set(ecole.id, {
+          ecoleId: ecole.id,
+          ecoleName: ecole.nom,
+          zoneId: zone.id,
+          zoneName: zone.nom,
+          nombreOccurrences: 0,
+          agents: {}
+        });
+      });
+    });
+
+    historique.forEach(entry => {
+      if (!entry.ecoleId) return;
+
+      const stat = ecolesMap.get(entry.ecoleId);
+      if (!stat) return;
+
+      stat.nombreOccurrences++;
+
+      const agents = entry.binomes.split(',').map(a => a.trim());
+      agents.forEach(agent => {
+        stat.agents[agent] = (stat.agents[agent] || 0) + 1;
+      });
+    });
+
+    return Array.from(ecolesMap.values()).sort((a, b) => b.nombreOccurrences - a.nombreOccurrences);
+  }
+
+  /**
    * Get most frequent pairs
    */
   getPairesPlusFrequentes(limit: number = 10): StatistiqueBinome[] {
@@ -226,6 +265,33 @@ export class StatistiquesService {
   getAgentsMoinsVehicule(limit: number = 5): StatistiqueVehicule[] {
     const stats = this.getStatistiquesVehicules();
     return stats.slice(-limit).reverse();
+  }
+
+  /**
+   * Get agents sorted by exterior percentage (lowest first) for rebalancing
+   * Agents with lower exterior percentage should be prioritized for exterior zones
+   */
+  getAgentsForExterieurRebalancing(): StatistiqueExterieur[] {
+    const stats = this.getStatistiquesExterieur();
+    // Sort by pourcentageExterieur ascending (lowest first = should go to exterior)
+    return stats.sort((a, b) => a.pourcentageExterieur - b.pourcentageExterieur);
+  }
+
+  /**
+   * Get exterior percentage for a specific agent
+   */
+  getAgentExterieurPercentage(agentId: string): number {
+    const stats = this.getStatistiquesExterieur();
+    const agentStat = stats.find(s => s.agentId === agentId);
+    return agentStat?.pourcentageExterieur ?? 0;
+  }
+
+  /**
+   * Calculate priority score for an agent to be assigned to exterior zone
+   * Lower score = higher priority for exterior (has been to exterior less often)
+   */
+  getAgentExterieurPriorityScore(agentId: string): number {
+    return this.getAgentExterieurPercentage(agentId);
   }
 
   /**

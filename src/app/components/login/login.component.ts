@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -13,10 +13,9 @@ import { AuthService } from '../../services/auth.service';
       <div class="login-card">
         <div class="login-header">
           <div class="logo">
-            <span class="logo-icon">ADAMMDR</span>
-            <h1>ADAMMDR</h1>
+            <h1>SmartPlanner</h1>
           </div>
-          <p class="subtitle">Planning Automatique</p>
+          <p class="subtitle">Gestion intelligente des plannings</p>
         </div>
 
         <form (ngSubmit)="onLogin()" class="login-form">
@@ -63,12 +62,99 @@ import { AuthService } from '../../services/auth.service';
           <small>Identifiant: <strong>admin</strong> | Mot de passe: <strong>admin123</strong></small>
         </div>
       </div>
+
+      <div class="login-credit">
+        Développé par <strong>Fetchit SRL</strong>
+      </div>
+    </div>
+
+    <!-- Modal Conditions d'utilisation -->
+    <div class="modal-overlay" *ngIf="showTermsModal()">
+      <div class="modal-terms">
+        <div class="modal-terms-header">
+          <h2>Charte d'utilisation du programme</h2>
+        </div>
+        <div class="modal-terms-content">
+          <p class="intro">
+            Ce programme a été développé par <strong>FetchIT</strong>, en collaboration avec <strong>Adem Ait Abdallah</strong>, 
+            et est mis à disposition du Service de la Cohésion Sociale – Département Civil et Social de la Ville de Namur.
+          </p>
+
+          <div class="terms-section">
+            <h3>1. Accès autorisé</h3>
+            <ul>
+              <li>L'accès est strictement réservé aux agents dont l'identifiant figure dans la base de données du programme.</li>
+              <li>Toute tentative d'accès non autorisé est interdite.</li>
+            </ul>
+          </div>
+
+          <div class="terms-section">
+            <h3>2. Usage professionnel uniquement</h3>
+            <ul>
+              <li>Le programme doit être utilisé exclusivement dans le cadre des missions du Service de la Cohésion Sociale.</li>
+              <li>Toute utilisation personnelle, extérieure ou non conforme au rôle de l'agent est prohibée.</li>
+            </ul>
+          </div>
+
+          <div class="terms-section">
+            <h3>3. Respect des consignes</h3>
+            <ul>
+              <li>L'utilisateur s'engage à suivre les consignes fournies par le prestataire, Adem Ait Abdallah.</li>
+              <li>Toute modification non autorisée, altération des données ou manipulation inappropriée est interdite.</li>
+            </ul>
+          </div>
+
+          <div class="terms-section">
+            <h3>4. Protection intellectuelle</h3>
+            <ul>
+              <li>Le programme et son contenu sont protégés par les droits de propriété intellectuelle de FetchIT.</li>
+              <li>Toute reproduction, copie, extraction, diffusion ou adaptation non autorisée est strictement interdite.</li>
+            </ul>
+          </div>
+
+          <div class="terms-section">
+            <h3>5. Fraude et détournement</h3>
+            <ul>
+              <li>Toute utilisation en dehors du cadre défini, tout détournement ou tentative de contournement des règles est considéré comme une fraude.</li>
+              <li>De telles actions pourront entraîner des poursuites judiciaires.</li>
+            </ul>
+          </div>
+
+          <div class="terms-section">
+            <h3>6. Responsabilité de l'utilisateur</h3>
+            <ul>
+              <li>L'utilisateur est responsable de toute action effectuée avec son identifiant.</li>
+              <li>En cas de doute ou d'erreur, il s'engage à prévenir immédiatement sa hiérarchie.</li>
+            </ul>
+          </div>
+
+          <div class="terms-contact">
+            <p>
+              <strong>Contact :</strong> La société Fetchit via le mail suivant : 
+              <a href="mailto:thomas.iovino@fetchit.be">thomas.iovino&#64;fetchit.be</a>
+            </p>
+          </div>
+        </div>
+        <div class="modal-terms-footer">
+          <label class="checkbox-accept">
+            <input type="checkbox" [(ngModel)]="termsAccepted" />
+            <span>J'ai lu et j'accepte les conditions d'utilisation</span>
+          </label>
+          <button 
+            class="btn btn-primary btn-accept" 
+            [disabled]="!termsAccepted"
+            (click)="acceptTerms()">
+            Continuer
+          </button>
+        </div>
+      </div>
     </div>
   `,
   styles: [`
     .login-container {
       min-height: 100vh;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       background: linear-gradient(135deg, #1a3a0d 0%, #2d5016 50%, #3d6b1e 100%);
@@ -99,25 +185,18 @@ import { AuthService } from '../../services/auth.service';
       margin-bottom: 8px;
     }
 
-    .logo-icon {
-      font-size: 24px;
-      font-weight: 700;
-      letter-spacing: 2px;
-      display: none;
-    }
-
     .logo h1 {
       margin: 0;
       font-size: 32px;
       font-weight: 700;
-      letter-spacing: 2px;
+      letter-spacing: 1px;
     }
 
     .subtitle {
       margin: 0;
       opacity: 0.9;
       font-size: 14px;
-      letter-spacing: 1px;
+      letter-spacing: 0.5px;
     }
 
     .login-form {
@@ -213,6 +292,169 @@ import { AuthService } from '../../services/auth.service';
       color: #475569;
     }
 
+    .login-credit {
+      margin-top: 24px;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 13px;
+    }
+
+    .login-credit strong {
+      color: #c5e1a5;
+    }
+
+    /* Modal Terms */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 3000;
+      padding: 20px;
+    }
+
+    .modal-terms {
+      background: white;
+      border-radius: 16px;
+      max-width: 700px;
+      width: 100%;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    }
+
+    .modal-terms-header {
+      padding: 24px 30px;
+      background: linear-gradient(135deg, #2d5016 0%, #3d6b1e 100%);
+      border-radius: 16px 16px 0 0;
+    }
+
+    .modal-terms-header h2 {
+      margin: 0;
+      color: white;
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    .modal-terms-content {
+      padding: 24px 30px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .intro {
+      font-size: 15px;
+      line-height: 1.6;
+      color: #475569;
+      margin-bottom: 24px;
+      padding: 16px;
+      background: #f8fafc;
+      border-radius: 10px;
+      border-left: 4px solid #2d5016;
+    }
+
+    .terms-section {
+      margin-bottom: 20px;
+    }
+
+    .terms-section h3 {
+      font-size: 15px;
+      font-weight: 700;
+      color: #1e293b;
+      margin: 0 0 10px 0;
+    }
+
+    .terms-section ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    .terms-section li {
+      font-size: 14px;
+      line-height: 1.6;
+      color: #475569;
+      margin-bottom: 6px;
+    }
+
+    .terms-contact {
+      margin-top: 24px;
+      padding: 16px;
+      background: #ecfdf5;
+      border-radius: 10px;
+      border: 1px solid #a7f3d0;
+    }
+
+    .terms-contact p {
+      margin: 0;
+      font-size: 14px;
+      color: #065f46;
+    }
+
+    .terms-contact a {
+      color: #047857;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .terms-contact a:hover {
+      text-decoration: underline;
+    }
+
+    .modal-terms-footer {
+      padding: 20px 30px;
+      background: #f8fafc;
+      border-top: 1px solid #e2e8f0;
+      border-radius: 0 0 16px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .checkbox-accept {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      font-size: 14px;
+      color: #1e293b;
+    }
+
+    .checkbox-accept input {
+      width: 20px;
+      height: 20px;
+      accent-color: #2d5016;
+      cursor: pointer;
+    }
+
+    .btn-accept {
+      padding: 14px 24px;
+      font-size: 15px;
+      font-weight: 600;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #2d5016 0%, #3d6b1e 100%);
+      border: none;
+      color: white;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-accept:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(45, 80, 22, 0.3);
+    }
+
+    .btn-accept:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
     @media (max-width: 480px) {
       .login-card {
         border-radius: 0;
@@ -225,6 +467,19 @@ import { AuthService } from '../../services/auth.service';
       .login-form {
         padding: 30px 20px;
       }
+
+      .modal-terms {
+        max-height: 100vh;
+        border-radius: 0;
+      }
+
+      .modal-terms-header {
+        border-radius: 0;
+      }
+
+      .modal-terms-footer {
+        border-radius: 0;
+      }
     }
   `]
 })
@@ -232,15 +487,39 @@ export class LoginComponent {
   private authService = inject(AuthService);
   private router = inject(Router);
 
+  private readonly TERMS_ACCEPTED_KEY = 'smartplanner_terms_accepted';
+
   username = '';
   password = '';
   errorMessage = '';
   isLoading = false;
+  termsAccepted = false;
+
+  showTermsModal = signal<boolean>(!this.hasAcceptedTerms());
 
   constructor() {
     // Redirect if already logged in
     if (this.authService.isLoggedIn()) {
       this.router.navigate(['/planning']);
+    }
+  }
+
+  hasAcceptedTerms(): boolean {
+    try {
+      return localStorage.getItem(this.TERMS_ACCEPTED_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  }
+
+  acceptTerms(): void {
+    if (this.termsAccepted) {
+      try {
+        localStorage.setItem(this.TERMS_ACCEPTED_KEY, 'true');
+      } catch {
+        // Silently fail if localStorage is not available
+      }
+      this.showTermsModal.set(false);
     }
   }
 
@@ -267,4 +546,3 @@ export class LoginComponent {
     }, 500);
   }
 }
-

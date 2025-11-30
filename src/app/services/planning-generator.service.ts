@@ -4,12 +4,14 @@ import { Groupe, PlanningEntry, PlanningJour, PlanningSemaine } from '../models/
 import { HistoriqueEntry } from '../models/historique.model';
 import { ZONES, Zone, getZonesByPriority } from '../models/zone.model';
 import { DataService } from './data.service';
+import { StatistiquesService } from './statistiques.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class PlanningGeneratorService {
   private dataService = inject(DataService);
+  private statistiquesService = inject(StatistiquesService);
 
   /**
    * Generate a full weekly planning
@@ -123,6 +125,9 @@ export class PlanningGeneratorService {
     // Available zones sorted by priority (Z2, Z3 first, then Z4, then Z1)
     const zonesDisponibles = getZonesByPriority();
 
+    // Get exterior statistics for rebalancing
+    const exterieurStats = this.statistiquesService.getAgentsForExterieurRebalancing();
+
     let zoneIndex = 0;
 
     while (agentsUtilises.size < agentsDisponibles.length) {
@@ -142,7 +147,7 @@ export class PlanningGeneratorService {
       const zone = zonesDisponibles[zoneIndex % zonesDisponibles.length];
       zoneIndex++;
 
-      // Select agents avoiding same pairs as morning and same zone
+      // Select agents with rebalancing for exterior zones
       const agentsGroupe = this.selectAgentsPourGroupe(
         agentsRestants,
         tailleGroupe,
@@ -151,7 +156,8 @@ export class PlanningGeneratorService {
         historique,
         entriesMemeJour,
         zone,
-        zonesMatin
+        zonesMatin,
+        exterieurStats
       );
 
       if (agentsGroupe.length >= 2) {
@@ -204,7 +210,9 @@ export class PlanningGeneratorService {
   }
 
   /**
-   * Select agents for a group avoiding repetitions
+   * Select agents for a group with rebalancing based on exterior zone statistics
+   * For exterior zones (Z1, Z4): prioritize agents with LOWER exterior percentage
+   * This ensures fair rotation of exterior assignments
    */
   private selectAgentsPourGroupe(
     agentsDisponibles: Agent[],
@@ -214,7 +222,8 @@ export class PlanningGeneratorService {
     historique: HistoriqueEntry[],
     entriesMemeJour: PlanningEntry[],
     zone: Zone,
-    zonesMatin: Map<string, string>
+    zonesMatin: Map<string, string>,
+    exterieurStats: { agentId: string; pourcentageExterieur: number }[]
   ): Agent[] {
     // Filter agents who weren't in the same zone in the morning
     let candidats = agentsDisponibles.filter(a => {
@@ -227,8 +236,13 @@ export class PlanningGeneratorService {
       candidats = [...agentsDisponibles];
     }
 
-    // Shuffle for randomness
-    this.shuffleArray(candidats);
+    // For exterior zones (Z1, Z4), sort by exterior percentage (lowest first for rebalancing)
+    if (zone.isExterieur) {
+      candidats = this.sortAgentsByExterieurPriority(candidats, exterieurStats);
+    } else {
+      // For interior zones, slightly randomize but still consider balance
+      this.shuffleArray(candidats);
+    }
 
     const selected: Agent[] = [];
 
@@ -258,6 +272,28 @@ export class PlanningGeneratorService {
     }
 
     return selected;
+  }
+
+  /**
+   * Sort agents by exterior zone priority for rebalancing
+   * Agents with LOWER exterior percentage are prioritized (should go to exterior more)
+   */
+  private sortAgentsByExterieurPriority(
+    agents: Agent[],
+    exterieurStats: { agentId: string; pourcentageExterieur: number }[]
+  ): Agent[] {
+    // Create a map for quick lookup
+    const statsMap = new Map<string, number>();
+    exterieurStats.forEach(stat => {
+      statsMap.set(stat.agentId, stat.pourcentageExterieur);
+    });
+
+    // Sort agents by exterior percentage (ascending - lowest first)
+    return [...agents].sort((a, b) => {
+      const percentA = statsMap.get(a.id) ?? 50; // Default to 50% if no stats
+      const percentB = statsMap.get(b.id) ?? 50;
+      return percentA - percentB;
+    });
   }
 
   /**

@@ -48,4 +48,14 @@ export interface StatistiqueExterieur {
   pourcentageExterieur: number;
 }
 
+// School statistics
+export interface StatistiqueEcole {
+  ecoleId: string;
+  ecoleName: string;
+  zoneId: string;
+  zoneName: string;
+  nombreOccurrences: number;
+  agents: { [agentName: string]: number };
+}
+
 

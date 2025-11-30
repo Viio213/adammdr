@@ -35,8 +35,8 @@ export const ZONES: Zone[] = [
     id: 'zone2',
     nom: 'Zone 2 - Centre Namur Ouest',
     ecoles: [
-      { id: 'e4', nom: 'E4', zoneId: 'zone2' },
-      { id: 'e8', nom: 'E8', zoneId: 'zone2' }
+      { id: 'e71', nom: 'E71', zoneId: 'zone2' },
+      { id: 'e6', nom: 'E6', zoneId: 'zone2' }
     ],
     isExterieur: false,
     priorite: 1 // Highest priority - covered first
@@ -45,8 +45,8 @@ export const ZONES: Zone[] = [
     id: 'zone3',
     nom: 'Zone 3 - Centre Namur Est',
     ecoles: [
-      { id: 'e71', nom: 'E71', zoneId: 'zone3' },
-      { id: 'e6', nom: 'E6', zoneId: 'zone3' }
+      { id: 'e4', nom: 'E4', zoneId: 'zone3' },
+      { id: 'e8', nom: 'E8', zoneId: 'zone3' }
     ],
     isExterieur: false,
     priorite: 1 // Highest priority - covered first

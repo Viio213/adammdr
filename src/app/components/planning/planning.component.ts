@@ -7,7 +7,7 @@ import { ExcelExportService } from '../../services/excel-export.service';
 import { PdfExportService } from '../../services/pdf-export.service';
 import { AuthService } from '../../services/auth.service';
 import { PlanningSemaine, PlanningJour, Groupe } from '../../models/planning.model';
-import { JourSemaine, DemiJournee, JOURS_TRAVAIL } from '../../models/agent.model';
+import { Agent, JourSemaine, DemiJournee, JOURS_TRAVAIL } from '../../models/agent.model';
 import { ZONES } from '../../models/zone.model';
 
 @Component({
@@ -81,7 +81,8 @@ import { ZONES } from '../../models/zone.model';
                   <th class="th-periode">Matin</th>
                   <th class="th-periode">Après-midi</th>
                   <th class="th-binomes">Binômes</th>
-                  <th class="th-zones">Zones</th>
+                  <th class="th-zones">Zone</th>
+                  <th class="th-ecole">École</th>
                   <th class="th-vehicule">Véhicule</th>
                   <th class="th-mission">Mission</th>
                   <th class="th-reunion">Réunion</th>
@@ -124,7 +125,16 @@ import { ZONES } from '../../models/zone.model';
                       
                       <!-- Binômes -->
                       <td class="td-binomes">
-                        <div class="binome-names">{{ getGroupeNoms(groupe) }}</div>
+                        <div class="binome-cell">
+                          <div class="binome-names">{{ getGroupeNoms(groupe) }}</div>
+                          <button 
+                            *ngIf="canEdit && !planningActuel()!.isConfirmed"
+                            class="btn-edit-binome"
+                            (click)="ouvrirModalBinome(groupe, jourPlanning.date, 'MATIN')"
+                            title="Modifier les agents">
+                            ✎
+                          </button>
+                        </div>
                       </td>
                       
                       <!-- Zone -->
@@ -142,6 +152,24 @@ import { ZONES } from '../../models/zone.model';
                         <span *ngIf="!canEdit || planningActuel()!.isConfirmed" class="readonly-value">
                           {{ getZoneName(groupe.zoneId) }}
                         </span>
+                      </td>
+                      
+                      <!-- École -->
+                      <td class="td-ecole">
+                        <select 
+                          *ngIf="canEdit && !planningActuel()!.isConfirmed && groupe.zoneId"
+                          [(ngModel)]="groupe.ecoleId" 
+                          class="ecole-select"
+                          (change)="sauvegarderPlanning()">
+                          <option value="">-</option>
+                          <option *ngFor="let ecole of getEcolesForZone(groupe.zoneId)" [value]="ecole.id">
+                            {{ ecole.nom }}
+                          </option>
+                        </select>
+                        <span *ngIf="!canEdit || planningActuel()!.isConfirmed" class="readonly-value">
+                          {{ getEcoleName(groupe.ecoleId) }}
+                        </span>
+                        <span *ngIf="canEdit && !planningActuel()!.isConfirmed && !groupe.zoneId" class="readonly-value">-</span>
                       </td>
                       
                       <!-- Véhicule -->
@@ -220,7 +248,7 @@ import { ZONES } from '../../models/zone.model';
                     </td>
                     <td class="td-periode td-matin">Matin</td>
                     <td class="td-periode td-empty-periode"></td>
-                    <td colspan="6" class="td-no-groupe">Aucun binôme</td>
+                    <td colspan="7" class="td-no-groupe">Aucun binôme</td>
                   </tr>
                   
                   <!-- Afternoon rows -->
@@ -241,7 +269,16 @@ import { ZONES } from '../../models/zone.model';
                       
                       <!-- Binômes -->
                       <td class="td-binomes">
-                        <div class="binome-names">{{ getGroupeNoms(groupe) }}</div>
+                        <div class="binome-cell">
+                          <div class="binome-names">{{ getGroupeNoms(groupe) }}</div>
+                          <button 
+                            *ngIf="canEdit && !planningActuel()!.isConfirmed"
+                            class="btn-edit-binome"
+                            (click)="ouvrirModalBinome(groupe, jourPlanning.date, 'APRES_MIDI')"
+                            title="Modifier les agents">
+                            ✎
+                          </button>
+                        </div>
                       </td>
                       
                       <!-- Zone -->
@@ -259,6 +296,24 @@ import { ZONES } from '../../models/zone.model';
                         <span *ngIf="!canEdit || planningActuel()!.isConfirmed" class="readonly-value">
                           {{ getZoneName(groupe.zoneId) }}
                         </span>
+                      </td>
+                      
+                      <!-- École -->
+                      <td class="td-ecole">
+                        <select 
+                          *ngIf="canEdit && !planningActuel()!.isConfirmed && groupe.zoneId"
+                          [(ngModel)]="groupe.ecoleId" 
+                          class="ecole-select"
+                          (change)="sauvegarderPlanning()">
+                          <option value="">-</option>
+                          <option *ngFor="let ecole of getEcolesForZone(groupe.zoneId)" [value]="ecole.id">
+                            {{ ecole.nom }}
+                          </option>
+                        </select>
+                        <span *ngIf="!canEdit || planningActuel()!.isConfirmed" class="readonly-value">
+                          {{ getEcoleName(groupe.ecoleId) }}
+                        </span>
+                        <span *ngIf="canEdit && !planningActuel()!.isConfirmed && !groupe.zoneId" class="readonly-value">-</span>
                       </td>
                       
                       <!-- Véhicule -->
@@ -322,7 +377,7 @@ import { ZONES } from '../../models/zone.model';
                   <tr *ngIf="jourPlanning.apresMidi.groupes.length === 0" class="row-empty row-aprem">
                     <td class="td-periode td-empty-periode"></td>
                     <td class="td-periode td-aprem">Après-midi</td>
-                    <td colspan="6" class="td-no-groupe">Aucun binôme</td>
+                    <td colspan="7" class="td-no-groupe">Aucun binôme</td>
                   </tr>
                 </ng-container>
               </tbody>
@@ -336,6 +391,47 @@ import { ZONES } from '../../models/zone.model';
             <span>Sélectionnez une date et cliquez sur "Générer Planning Hebdo"</span>
           </div>
         </ng-template>
+      </div>
+    </div>
+
+    <!-- Modal pour modifier les binômes -->
+    <div class="modal-overlay" *ngIf="showBinomeModal" (click)="fermerModalBinome($event)">
+      <div class="modal-binome" (click)="$event.stopPropagation()">
+        <div class="modal-binome-header">
+          <h3>Modifier le groupe</h3>
+          <button class="btn-close" (click)="fermerModalBinome()">×</button>
+        </div>
+        <div class="modal-binome-content">
+          <p class="modal-info">Sélectionnez les agents pour ce groupe (2-3 agents) :</p>
+          <div class="agents-list">
+            <label 
+              *ngFor="let agent of agentsDisponibles()" 
+              class="agent-checkbox"
+              [class.selected]="isAgentSelected(agent.id)"
+              [class.disabled]="!isAgentAvailable(agent.id)">
+              <input 
+                type="checkbox" 
+                [checked]="isAgentSelected(agent.id)"
+                [disabled]="!isAgentAvailable(agent.id) && !isAgentSelected(agent.id)"
+                (change)="toggleAgent(agent)"
+              />
+              <span class="agent-name">{{ agent.nom }}</span>
+              <span *ngIf="!isAgentAvailable(agent.id) && !isAgentSelected(agent.id)" class="agent-busy">(occupé)</span>
+            </label>
+          </div>
+          <p *ngIf="selectedAgents.length < 2" class="warning-text">
+            Veuillez sélectionner au moins 2 agents
+          </p>
+        </div>
+        <div class="modal-binome-footer">
+          <button class="btn btn-secondary" (click)="fermerModalBinome()">Annuler</button>
+          <button 
+            class="btn btn-primary" 
+            [disabled]="selectedAgents.length < 2"
+            (click)="sauvegarderBinome()">
+            Enregistrer
+          </button>
+        </div>
       </div>
     </div>
   `,
@@ -493,11 +589,12 @@ import { ZONES } from '../../models/zone.model';
     .th-jour { width: 120px; }
     .th-periode { width: 80px; }
     .th-binomes { width: 120px; }
-    .th-zones { width: 180px; }
+    .th-zones { width: 160px; }
+    .th-ecole { width: 80px; }
     .th-vehicule { width: 70px; }
-    .th-mission { min-width: 120px; }
-    .th-reunion { min-width: 120px; }
-    .th-commentaires { min-width: 150px; }
+    .th-mission { min-width: 100px; }
+    .th-reunion { min-width: 100px; }
+    .th-commentaires { min-width: 120px; }
     
     .td-jour {
       background: linear-gradient(135deg, #8bc34a 0%, #9ccc65 100%);
@@ -565,13 +662,39 @@ import { ZONES } from '../../models/zone.model';
       text-align: center;
     }
     
+    .binome-cell {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    
     .binome-names {
       font-weight: 600;
       color: #1e293b;
       line-height: 1.4;
     }
     
-    .zone-select {
+    .btn-edit-binome {
+      background: #e2e8f0;
+      border: none;
+      border-radius: 4px;
+      width: 24px;
+      height: 24px;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    
+    .btn-edit-binome:hover {
+      background: #3b82f6;
+      color: #fff;
+    }
+    
+    .zone-select, .ecole-select {
       width: 100%;
       padding: 6px 8px;
       border: 1px solid #e0e0e0;
@@ -580,9 +703,13 @@ import { ZONES } from '../../models/zone.model';
       background: #fff;
     }
     
-    .zone-select:focus {
+    .zone-select:focus, .ecole-select:focus {
       outline: none;
       border-color: #3b82f6;
+    }
+    
+    .td-ecole {
+      text-align: center;
     }
     
     .td-vehicule {
@@ -657,6 +784,142 @@ import { ZONES } from '../../models/zone.model';
       .header-actions { flex-direction: column; }
       .date-input, .btn { width: 100%; }
     }
+
+    /* Modal Binômes */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      padding: 20px;
+    }
+
+    .modal-binome {
+      background: white;
+      border-radius: 16px;
+      max-width: 450px;
+      width: 100%;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    }
+
+    .modal-binome-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 24px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+
+    .modal-binome-header h3 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+      color: #1e293b;
+    }
+
+    .btn-close {
+      background: #f1f5f9;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #64748b;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn-close:hover {
+      background: #e2e8f0;
+    }
+
+    .modal-binome-content {
+      padding: 24px;
+    }
+
+    .modal-info {
+      margin: 0 0 16px 0;
+      color: #64748b;
+      font-size: 14px;
+    }
+
+    .agents-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .agent-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: #f8fafc;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 2px solid transparent;
+    }
+
+    .agent-checkbox:hover:not(.disabled) {
+      background: #f1f5f9;
+    }
+
+    .agent-checkbox.selected {
+      background: #ecfdf5;
+      border-color: #10b981;
+    }
+
+    .agent-checkbox.disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .agent-checkbox input {
+      width: 18px;
+      height: 18px;
+      accent-color: #10b981;
+    }
+
+    .agent-name {
+      font-weight: 600;
+      color: #1e293b;
+      flex: 1;
+    }
+
+    .agent-busy {
+      font-size: 11px;
+      color: #f59e0b;
+      font-style: italic;
+    }
+
+    .warning-text {
+      margin: 12px 0 0 0;
+      color: #f59e0b;
+      font-size: 13px;
+      font-style: italic;
+    }
+
+    .modal-binome-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      padding: 16px 24px;
+      background: #f8fafc;
+      border-top: 1px solid #e2e8f0;
+      border-radius: 0 0 16px 16px;
+    }
   `]
 })
 export class PlanningComponent {
@@ -672,16 +935,36 @@ export class PlanningComponent {
   zones = ZONES;
   canEdit = this.authService.hasPermission('canGeneratePlanning');
 
+  // Modal binômes
+  showBinomeModal = false;
+  groupeEnEdition: Groupe | null = null;
+  dateGroupeEdition: Date | null = null;
+  periodeGroupeEdition: DemiJournee | null = null;
+  selectedAgents: Agent[] = [];
+  allAgents = signal<Agent[]>([]);
+
+  // Computed: agents disponibles pour la période
+  agentsDisponibles = computed(() => {
+    return this.allAgents().filter(a => a.actif);
+  });
+
   constructor() {
     this.chargerPlanningActuel();
+    this.allAgents.set(this.dataService.getAgents());
   }
 
   genererPlanningHebdo(): void {
-    const dateDebut = new Date(this.dateDebutSemaine);
+    // Get the Monday of the selected week (fix: always start on Monday)
+    const selectedDate = new Date(this.dateDebutSemaine);
+    const dateDebut = this.getLundiSemaine(selectedDate);
+    
     const planning = this.planningGenerator.generatePlanningSemaine(dateDebut);
     
     this.dataService.addPlanning(planning);
     this.planningActuel.set(planning);
+    
+    // Update the date input to show the actual Monday
+    this.dateDebutSemaine = dateDebut.toISOString().split('T')[0];
   }
 
   genererJour(jour: JourSemaine): void {
@@ -739,6 +1022,21 @@ export class PlanningComponent {
     return zone ? zone.nom.replace('Zone ', 'Z') : '-';
   }
 
+  getEcolesForZone(zoneId?: string): { id: string; nom: string }[] {
+    if (!zoneId) return [];
+    const zone = ZONES.find(z => z.id === zoneId);
+    return zone?.ecoles || [];
+  }
+
+  getEcoleName(ecoleId?: string): string {
+    if (!ecoleId) return '-';
+    for (const zone of ZONES) {
+      const ecole = zone.ecoles.find(e => e.id === ecoleId);
+      if (ecole) return ecole.nom;
+    }
+    return '-';
+  }
+
   onZoneChange(groupe: Groupe): void {
     // Auto-select first school from zone
     if (groupe.zoneId) {
@@ -793,6 +1091,77 @@ export class PlanningComponent {
     const day = d.getDay();
     const diff = d.getDate() - day + (day === 0 ? -6 : 1);
     return new Date(d.setDate(diff));
+  }
+
+  // Modal binômes methods
+  ouvrirModalBinome(groupe: Groupe, date: Date, periode: string): void {
+    this.groupeEnEdition = groupe;
+    this.dateGroupeEdition = date;
+    this.periodeGroupeEdition = periode as DemiJournee;
+    this.selectedAgents = [...groupe.agents];
+    this.showBinomeModal = true;
+  }
+
+  fermerModalBinome(event?: Event): void {
+    if (!event || (event.target as HTMLElement).classList.contains('modal-overlay')) {
+      this.showBinomeModal = false;
+      this.groupeEnEdition = null;
+      this.selectedAgents = [];
+    }
+  }
+
+  isAgentSelected(agentId: string): boolean {
+    return this.selectedAgents.some(a => a.id === agentId);
+  }
+
+  isAgentAvailable(agentId: string): boolean {
+    if (!this.dateGroupeEdition || !this.periodeGroupeEdition) return true;
+    
+    // Check if agent is already in another group for the same period
+    const planning = this.planningActuel();
+    if (!planning) return true;
+
+    const jourPlanning = planning.jours.find(j => 
+      new Date(j.date).toDateString() === new Date(this.dateGroupeEdition!).toDateString()
+    );
+    if (!jourPlanning) return true;
+
+    const entry = this.periodeGroupeEdition === DemiJournee.MATIN 
+      ? jourPlanning.matin 
+      : jourPlanning.apresMidi;
+
+    // Check if agent is in any other group (not the current one being edited)
+    for (const groupe of entry.groupes) {
+      if (groupe.id !== this.groupeEnEdition?.id) {
+        if (groupe.agents.some(a => a.id === agentId)) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
+  toggleAgent(agent: Agent): void {
+    const index = this.selectedAgents.findIndex(a => a.id === agent.id);
+    if (index >= 0) {
+      this.selectedAgents.splice(index, 1);
+    } else if (this.selectedAgents.length < 3) {
+      this.selectedAgents.push(agent);
+    }
+  }
+
+  sauvegarderBinome(): void {
+    if (!this.groupeEnEdition || this.selectedAgents.length < 2) return;
+
+    // Update the group's agents
+    this.groupeEnEdition.agents = [...this.selectedAgents];
+    
+    // Save the planning
+    this.sauvegarderPlanning();
+    
+    // Close modal
+    this.fermerModalBinome();
   }
 }
 

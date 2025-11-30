@@ -7,7 +7,8 @@ import {
   StatistiqueZone, 
   StatistiqueAgent,
   StatistiqueVehicule,
-  StatistiqueExterieur
+  StatistiqueExterieur,
+  StatistiqueEcole
 } from '../../models/statistiques.model';
 
 @Component({
@@ -243,6 +244,47 @@ import {
                 </span>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Statistiques Écoles -->
+      <div class="card">
+        <div class="card-header">
+          <h2>Répartition par École</h2>
+        </div>
+        <div class="stats-content">
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>École</th>
+                  <th>Zone</th>
+                  <th>Occurrences</th>
+                  <th>Agents fréquents</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let ecole of statistiquesEcoles()">
+                  <td><strong>{{ ecole.ecoleName }}</strong></td>
+                  <td>{{ ecole.zoneName }}</td>
+                  <td>
+                    <span class="badge badge-primary">{{ ecole.nombreOccurrences }}</span>
+                  </td>
+                  <td>
+                    <div class="partenaires-list">
+                      <span *ngFor="let agent of getTopAgentsZone(ecole.agents)" class="partenaire-badge">
+                        {{ agent.nom }} ({{ agent.count }})
+                      </span>
+                      <span *ngIf="getTopAgentsZone(ecole.agents).length === 0">-</span>
+                    </div>
+                  </td>
+                </tr>
+                <tr *ngIf="statistiquesEcoles().length === 0">
+                  <td colspan="4" class="text-center">Aucune statistique disponible</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -505,6 +547,7 @@ export class StatistiquesComponent {
   statistiquesAgents = signal<StatistiqueAgent[]>([]);
   statistiquesVehicules = signal<StatistiqueVehicule[]>([]);
   statistiquesExterieur = signal<StatistiqueExterieur[]>([]);
+  statistiquesEcoles = signal<StatistiqueEcole[]>([]);
   pairesPlusFrequentes = signal<StatistiqueBinome[]>([]);
 
   constructor() {
@@ -517,6 +560,7 @@ export class StatistiquesComponent {
     this.statistiquesAgents.set(this.statistiquesService.getStatistiquesAgents());
     this.statistiquesVehicules.set(this.statistiquesService.getStatistiquesVehicules());
     this.statistiquesExterieur.set(this.statistiquesService.getStatistiquesExterieur());
+    this.statistiquesEcoles.set(this.statistiquesService.getStatistiquesEcoles());
     this.pairesPlusFrequentes.set(this.statistiquesService.getPairesPlusFrequentes(10));
   }
 
