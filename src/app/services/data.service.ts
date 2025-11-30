@@ -1,120 +1,218 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { Agent, JourSemaine, DemiJournee, AGENTS_DEFAUT, TypeContrat } from '../models/agent.model';
 import { PlanningSemaine } from '../models/planning.model';
 import { HistoriqueEntry } from '../models/historique.model';
 import { Conge, StatutConge } from '../models/conge.model';
+import { SupabaseService } from './supabase.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class DataService {
-  private readonly STORAGE_KEY_AGENTS = 'adammdr_agents';
-  private readonly STORAGE_KEY_HISTORIQUE = 'adammdr_historique';
-  private readonly STORAGE_KEY_PLANNINGS = 'adammdr_plannings';
-  private readonly STORAGE_KEY_CONGES = 'adammdr_conges';
-  private readonly STORAGE_KEY_LAST_PLANNING_ID = 'adammdr_last_planning_id';
-
+  private supabase = inject(SupabaseService);
+  
   // Signals for reactive updates
-  agents = signal<Agent[]>(this.loadAgents());
-  historique = signal<HistoriqueEntry[]>(this.loadHistorique());
-  plannings = signal<PlanningSemaine[]>(this.loadPlannings());
-  conges = signal<Conge[]>(this.loadConges());
+  agents = signal<Agent[]>([]);
+  historique = signal<HistoriqueEntry[]>([]);
+  plannings = signal<PlanningSemaine[]>([]);
+  conges = signal<Conge[]>([]);
+
+  // Loading states
+  isLoading = signal<boolean>(true);
+  private initialized = false;
+  private lastPlanningId: string | null = null;
 
   constructor() {
-    // Initialize with default agents if empty
-    if (this.agents().length === 0) {
-      this.initializeDefaultAgents();
+    this.initializeData();
+  }
+
+  /**
+   * Initialize data from Supabase
+   */
+  async initializeData(): Promise<void> {
+    if (this.initialized) return;
+    
+    try {
+      this.isLoading.set(true);
+      
+      // Load all data in parallel
+      const [agents, plannings, historique, conges] = await Promise.all([
+        this.supabase.getAgents(),
+        this.supabase.getPlannings(),
+        this.supabase.getHistorique(),
+        this.supabase.getConges()
+      ]);
+
+      this.agents.set(agents);
+      this.plannings.set(plannings);
+      this.historique.set(historique);
+      this.conges.set(conges);
+
+      this.initialized = true;
+    } catch (error) {
+      console.error('Error initializing data from Supabase:', error);
+      // Fallback: try localStorage if Supabase fails
+      this.loadFromLocalStorage();
+    } finally {
+      this.isLoading.set(false);
     }
   }
 
-  // Agents management
+  /**
+   * Fallback to localStorage if Supabase fails
+   */
+  private loadFromLocalStorage(): void {
+    try {
+      const agentsData = localStorage.getItem('adammdr_agents');
+      if (agentsData) {
+        this.agents.set(JSON.parse(agentsData));
+      }
+      
+      const planningsData = localStorage.getItem('adammdr_plannings');
+      if (planningsData) {
+        const plannings = JSON.parse(planningsData).map((p: any) => ({
+          ...p,
+          dateDebut: new Date(p.dateDebut),
+          dateFin: new Date(p.dateFin),
+          dateGeneration: new Date(p.dateGeneration)
+        }));
+        this.plannings.set(plannings);
+      }
+      
+      const historiqueData = localStorage.getItem('adammdr_historique');
+      if (historiqueData) {
+        const historique = JSON.parse(historiqueData).map((h: any) => ({
+          ...h,
+          date: new Date(h.date)
+        }));
+        this.historique.set(historique);
+      }
+      
+      const congesData = localStorage.getItem('adammdr_conges');
+      if (congesData) {
+        const conges = JSON.parse(congesData).map((c: any) => ({
+          ...c,
+          dateDebut: new Date(c.dateDebut),
+          dateFin: new Date(c.dateFin),
+          dateCreation: new Date(c.dateCreation)
+        }));
+        this.conges.set(conges);
+      }
+    } catch (error) {
+      console.error('Error loading from localStorage:', error);
+    }
+  }
+
+  /**
+   * Refresh all data from Supabase
+   */
+  async refreshData(): Promise<void> {
+    this.initialized = false;
+    await this.initializeData();
+  }
+
+  // ============================================
+  // AGENTS
+  // ============================================
   getAgents(): Agent[] {
     return this.agents();
   }
 
-  addAgent(agent: Agent): void {
-    const agents = [...this.agents(), agent];
-    this.agents.set(agents);
-    this.saveAgents(agents);
+  async addAgent(agent: Agent): Promise<void> {
+    try {
+      const newAgent = await this.supabase.createAgent(agent);
+      this.agents.set([...this.agents(), newAgent]);
+    } catch (error) {
+      console.error('Error adding agent:', error);
+      // Fallback to local
+      this.agents.set([...this.agents(), agent]);
+    }
   }
 
-  updateAgent(agent: Agent): void {
-    const agents = this.agents().map(a => a.id === agent.id ? agent : a);
-    this.agents.set(agents);
-    this.saveAgents(agents);
+  async updateAgent(agent: Agent): Promise<void> {
+    try {
+      await this.supabase.updateAgent(agent);
+      const agents = this.agents().map(a => a.id === agent.id ? agent : a);
+      this.agents.set(agents);
+    } catch (error) {
+      console.error('Error updating agent:', error);
+      const agents = this.agents().map(a => a.id === agent.id ? agent : a);
+      this.agents.set(agents);
+    }
   }
 
-  deleteAgent(id: string): void {
-    const agents = this.agents().filter(a => a.id !== id);
-    this.agents.set(agents);
-    this.saveAgents(agents);
+  async deleteAgent(id: string): Promise<void> {
+    try {
+      await this.supabase.deleteAgent(id);
+      const agents = this.agents().filter(a => a.id !== id);
+      this.agents.set(agents);
+    } catch (error) {
+      console.error('Error deleting agent:', error);
+      const agents = this.agents().filter(a => a.id !== id);
+      this.agents.set(agents);
+    }
   }
 
-  // Historique management
-  getHistorique(): HistoriqueEntry[] {
-    return this.historique();
-  }
-
-  addHistoriqueEntries(entries: HistoriqueEntry[]): void {
-    const historique = [...this.historique(), ...entries];
-    this.historique.set(historique);
-    this.saveHistorique(historique);
-  }
-
-  updateHistoriqueEntry(entry: HistoriqueEntry): void {
-    const historique = this.historique().map(e => e.id === entry.id ? entry : e);
-    this.historique.set(historique);
-    this.saveHistorique(historique);
-  }
-
-  deleteHistoriqueEntry(id: string): void {
-    const historique = this.historique().filter(e => e.id !== id);
-    this.historique.set(historique);
-    this.saveHistorique(historique);
-  }
-
-  // Planning management
+  // ============================================
+  // PLANNINGS
+  // ============================================
   getPlannings(): PlanningSemaine[] {
     return this.plannings();
   }
 
-  addPlanning(planning: PlanningSemaine): void {
-    // Remove existing planning for the same week if exists
-    const existingIndex = this.plannings().findIndex(p => {
-      const pDebut = new Date(p.dateDebut).toISOString().split('T')[0];
-      const newDebut = new Date(planning.dateDebut).toISOString().split('T')[0];
-      return pDebut === newDebut;
-    });
-    
-    let plannings: PlanningSemaine[];
-    if (existingIndex >= 0) {
-      plannings = [...this.plannings()];
-      plannings[existingIndex] = planning;
-    } else {
-      plannings = [...this.plannings(), planning];
+  async addPlanning(planning: PlanningSemaine): Promise<void> {
+    try {
+      // Remove existing planning for the same week if exists
+      const existingIndex = this.plannings().findIndex(p => {
+        const pDebut = new Date(p.dateDebut).toISOString().split('T')[0];
+        const newDebut = new Date(planning.dateDebut).toISOString().split('T')[0];
+        return pDebut === newDebut;
+      });
+      
+      if (existingIndex >= 0) {
+        const existingPlanning = this.plannings()[existingIndex];
+        await this.supabase.deletePlanning(existingPlanning.id);
+      }
+
+      const newPlanning = await this.supabase.createPlanning(planning);
+      
+      let plannings: PlanningSemaine[];
+      if (existingIndex >= 0) {
+        plannings = [...this.plannings()];
+        plannings[existingIndex] = newPlanning;
+      } else {
+        plannings = [...this.plannings(), newPlanning];
+      }
+      
+      this.plannings.set(plannings);
+      this.lastPlanningId = newPlanning.id;
+    } catch (error) {
+      console.error('Error adding planning:', error);
+      // Fallback to local
+      let plannings = [...this.plannings(), planning];
+      this.plannings.set(plannings);
+      this.lastPlanningId = planning.id;
     }
-    
-    this.plannings.set(plannings);
-    this.savePlannings(plannings);
-    
-    // Save the ID of the current planning for quick access
-    this.setLastPlanningId(planning.id);
   }
 
-  updatePlanning(planning: PlanningSemaine): void {
-    const plannings = this.plannings().map(p => p.id === planning.id ? planning : p);
-    this.plannings.set(plannings);
-    this.savePlannings(plannings);
-    
-    // Update last planning ID
-    this.setLastPlanningId(planning.id);
+  async updatePlanning(planning: PlanningSemaine): Promise<void> {
+    try {
+      await this.supabase.updatePlanning(planning);
+      const plannings = this.plannings().map(p => p.id === planning.id ? planning : p);
+      this.plannings.set(plannings);
+      this.lastPlanningId = planning.id;
+    } catch (error) {
+      console.error('Error updating planning:', error);
+      const plannings = this.plannings().map(p => p.id === planning.id ? planning : p);
+      this.plannings.set(plannings);
+      this.lastPlanningId = planning.id;
+    }
   }
 
   getPlanningActuel(): PlanningSemaine | null {
     // First, try to get the last viewed planning by ID
-    const lastId = this.getLastPlanningId();
-    if (lastId) {
-      const lastPlanning = this.plannings().find(p => p.id === lastId);
+    if (this.lastPlanningId) {
+      const lastPlanning = this.plannings().find(p => p.id === this.lastPlanningId);
       if (lastPlanning) return lastPlanning;
     }
     
@@ -131,7 +229,7 @@ export class DataService {
     });
     
     if (currentWeekPlanning) {
-      this.setLastPlanningId(currentWeekPlanning.id);
+      this.lastPlanningId = currentWeekPlanning.id;
       return currentWeekPlanning;
     }
     
@@ -142,25 +240,9 @@ export class DataService {
     
     const mostRecent = sortedPlannings[0] || null;
     if (mostRecent) {
-      this.setLastPlanningId(mostRecent.id);
+      this.lastPlanningId = mostRecent.id;
     }
     return mostRecent;
-  }
-
-  private getLastPlanningId(): string | null {
-    try {
-      return localStorage.getItem(this.STORAGE_KEY_LAST_PLANNING_ID);
-    } catch {
-      return null;
-    }
-  }
-
-  private setLastPlanningId(id: string): void {
-    try {
-      localStorage.setItem(this.STORAGE_KEY_LAST_PLANNING_ID, id);
-    } catch {
-      // Silently fail
-    }
   }
 
   getPlanningByDate(dateDebut: Date): PlanningSemaine | null {
@@ -171,270 +253,163 @@ export class DataService {
     }) || null;
   }
 
-  // LocalStorage persistence
-  private loadAgents(): Agent[] {
-    try {
-      const data = localStorage.getItem(this.STORAGE_KEY_AGENTS);
-      if (data) {
-        const agents = JSON.parse(data);
-        // Convert date strings back to Date objects for disponibilites if needed
-        return agents;
-      }
-    } catch (error) {
-      console.error('Error loading agents:', error);
-    }
-    return [];
+  async confirmPlanning(planning: PlanningSemaine): Promise<void> {
+    const confirmedPlanning = {
+      ...planning,
+      isConfirmed: true,
+      dateConfirmation: new Date()
+    };
+    await this.updatePlanning(confirmedPlanning);
   }
 
-  private saveAgents(agents: Agent[]): void {
-    try {
-      localStorage.setItem(this.STORAGE_KEY_AGENTS, JSON.stringify(agents));
-    } catch (error) {
-      console.error('Error saving agents:', error);
-    }
+  // ============================================
+  // HISTORIQUE
+  // ============================================
+  getHistorique(): HistoriqueEntry[] {
+    return this.historique();
   }
 
-  private loadHistorique(): HistoriqueEntry[] {
+  async addHistoriqueEntries(entries: HistoriqueEntry[]): Promise<void> {
     try {
-      const data = localStorage.getItem(this.STORAGE_KEY_HISTORIQUE);
-      if (data) {
-        const entries = JSON.parse(data);
-        // Convert date strings back to Date objects
-        return entries.map((e: HistoriqueEntry) => ({
-          ...e,
-          date: new Date(e.date)
-        }));
-      }
+      const newEntries = await this.supabase.createHistoriqueEntries(entries);
+      this.historique.set([...this.historique(), ...newEntries]);
     } catch (error) {
-      console.error('Error loading historique:', error);
-    }
-    return [];
-  }
-
-  private saveHistorique(historique: HistoriqueEntry[]): void {
-    try {
-      localStorage.setItem(this.STORAGE_KEY_HISTORIQUE, JSON.stringify(historique));
-    } catch (error) {
-      console.error('Error saving historique:', error);
+      console.error('Error adding historique entries:', error);
+      this.historique.set([...this.historique(), ...entries]);
     }
   }
 
-  private loadPlannings(): PlanningSemaine[] {
+  async updateHistoriqueEntry(entry: HistoriqueEntry): Promise<void> {
     try {
-      const data = localStorage.getItem(this.STORAGE_KEY_PLANNINGS);
-      if (data) {
-        const plannings = JSON.parse(data);
-        // Convert date strings back to Date objects
-        return plannings.map((p: PlanningSemaine) => ({
-          ...p,
-          dateDebut: new Date(p.dateDebut),
-          dateFin: new Date(p.dateFin),
-          dateGeneration: new Date(p.dateGeneration),
-          dateConfirmation: p.dateConfirmation ? new Date(p.dateConfirmation) : undefined,
-          // Restore jours array with proper date conversion
-          jours: p.jours?.map(j => ({
-            ...j,
-            date: new Date(j.date),
-            matin: {
-              ...j.matin,
-              groupes: j.matin.groupes.map(g => ({
-                ...g,
-                agents: g.agents.map(a => ({
-                  ...a,
-                  disponibilites: a.disponibilites?.map(d => ({ ...d })) || []
-                }))
-              }))
-            },
-            apresMidi: {
-              ...j.apresMidi,
-              groupes: j.apresMidi.groupes.map(g => ({
-                ...g,
-                agents: g.agents.map(a => ({
-                  ...a,
-                  disponibilites: a.disponibilites?.map(d => ({ ...d })) || []
-                }))
-              }))
-            }
-          })) || [],
-          entries: p.entries?.map(e => ({
-            ...e,
-            groupes: e.groupes.map(g => ({
-              ...g,
-              agents: g.agents.map(a => ({
-                ...a,
-                disponibilites: a.disponibilites?.map(d => ({ ...d })) || []
-              }))
-            }))
-          })) || []
-        }));
-      }
+      await this.supabase.updateHistorique(entry);
+      const historique = this.historique().map(h => h.id === entry.id ? entry : h);
+      this.historique.set(historique);
     } catch (error) {
-      console.error('Error loading plannings:', error);
-    }
-    return [];
-  }
-
-  private savePlannings(plannings: PlanningSemaine[]): void {
-    try {
-      localStorage.setItem(this.STORAGE_KEY_PLANNINGS, JSON.stringify(plannings));
-    } catch (error) {
-      console.error('Error saving plannings:', error);
+      console.error('Error updating historique:', error);
+      const historique = this.historique().map(h => h.id === entry.id ? entry : h);
+      this.historique.set(historique);
     }
   }
 
-  // Export/Import
-  exportData(): string {
-    return JSON.stringify({
-      agents: this.agents(),
-      historique: this.historique(),
-      plannings: this.plannings(),
-      exportDate: new Date().toISOString()
-    }, null, 2);
-  }
-
-  importData(jsonData: string): boolean {
+  async deleteHistoriqueEntry(id: string): Promise<void> {
     try {
-      const data = JSON.parse(jsonData);
-      if (data.agents) {
-        this.agents.set(data.agents);
-        this.saveAgents(data.agents);
-      }
-      if (data.historique) {
-        const historique = data.historique.map((e: HistoriqueEntry) => ({
-          ...e,
-          date: new Date(e.date)
-        }));
-        this.historique.set(historique);
-        this.saveHistorique(historique);
-      }
-      if (data.plannings) {
-        const plannings = data.plannings.map((p: PlanningSemaine) => ({
-          ...p,
-          dateDebut: new Date(p.dateDebut),
-          dateFin: new Date(p.dateFin),
-          dateGeneration: new Date(p.dateGeneration)
-        }));
-        this.plannings.set(plannings);
-        this.savePlannings(plannings);
-      }
-      return true;
+      await this.supabase.deleteHistorique(id);
+      const historique = this.historique().filter(h => h.id !== id);
+      this.historique.set(historique);
     } catch (error) {
-      console.error('Error importing data:', error);
-      return false;
+      console.error('Error deleting historique:', error);
+      const historique = this.historique().filter(h => h.id !== id);
+      this.historique.set(historique);
     }
   }
 
-  // Initialize default agents from AGENTS_DEFAUT
-  private initializeDefaultAgents(): void {
-    const agents: Agent[] = AGENTS_DEFAUT.map((agentData, index) => ({
-      id: `agent-${index + 1}`,
-      ...agentData
-    }));
-
-    this.agents.set(agents);
-    this.saveAgents(agents);
-  }
-
-  // Conges management
+  // ============================================
+  // CONGES
+  // ============================================
   getConges(): Conge[] {
     return this.conges();
   }
 
-  getCongesByAgent(agentId: string): Conge[] {
-    return this.conges().filter(c => c.agentId === agentId);
-  }
-
-  getCongesByPeriod(dateDebut: Date, dateFin: Date): Conge[] {
-    return this.conges().filter(c => {
-      const debut = new Date(c.dateDebut);
-      const fin = new Date(c.dateFin);
-      return debut <= dateFin && fin >= dateDebut;
-    });
-  }
-
-  addConge(conge: Conge): void {
-    const conges = [...this.conges(), conge];
-    this.conges.set(conges);
-    this.saveConges(conges);
-  }
-
-  updateConge(conge: Conge): void {
-    const conges = this.conges().map(c => c.id === conge.id ? conge : c);
-    this.conges.set(conges);
-    this.saveConges(conges);
-  }
-
-  deleteConge(id: string): void {
-    const conges = this.conges().filter(c => c.id !== id);
-    this.conges.set(conges);
-    this.saveConges(conges);
-  }
-
-  private loadConges(): Conge[] {
+  async addConge(conge: Conge): Promise<void> {
     try {
-      const data = localStorage.getItem(this.STORAGE_KEY_CONGES);
-      if (data) {
-        const conges = JSON.parse(data);
-        return conges.map((c: Conge) => ({
-          ...c,
-          dateDebut: new Date(c.dateDebut),
-          dateFin: new Date(c.dateFin),
-          dateCreation: new Date(c.dateCreation),
-          // Backward compatibility: add status if missing
-          statut: c.statut || StatutConge.VALIDE,
-          dateValidation: c.dateValidation ? new Date(c.dateValidation) : undefined
-        }));
-      }
+      const newConge = await this.supabase.createConge(conge);
+      this.conges.set([...this.conges(), newConge]);
     } catch (error) {
-      console.error('Error loading conges:', error);
-    }
-    return [];
-  }
-
-  private saveConges(conges: Conge[]): void {
-    try {
-      localStorage.setItem(this.STORAGE_KEY_CONGES, JSON.stringify(conges));
-    } catch (error) {
-      console.error('Error saving conges:', error);
+      console.error('Error adding conge:', error);
+      this.conges.set([...this.conges(), conge]);
     }
   }
 
-  // Check if agent is available on a specific date/period (considering leaves)
+  async updateConge(conge: Conge): Promise<void> {
+    try {
+      await this.supabase.updateConge(conge);
+      const conges = this.conges().map(c => c.id === conge.id ? conge : c);
+      this.conges.set(conges);
+    } catch (error) {
+      console.error('Error updating conge:', error);
+      const conges = this.conges().map(c => c.id === conge.id ? conge : c);
+      this.conges.set(conges);
+    }
+  }
+
+  async deleteConge(id: string): Promise<void> {
+    try {
+      await this.supabase.deleteConge(id);
+      const conges = this.conges().filter(c => c.id !== id);
+      this.conges.set(conges);
+    } catch (error) {
+      console.error('Error deleting conge:', error);
+      const conges = this.conges().filter(c => c.id !== id);
+      this.conges.set(conges);
+    }
+  }
+
+  async validerConge(conge: Conge, validePar: string): Promise<void> {
+    const updatedConge: Conge = {
+      ...conge,
+      statut: StatutConge.VALIDE,
+      dateValidation: new Date(),
+      validePar
+    };
+    await this.updateConge(updatedConge);
+  }
+
+  async refuserConge(conge: Conge, validePar: string): Promise<void> {
+    const updatedConge: Conge = {
+      ...conge,
+      statut: StatutConge.REFUSE,
+      dateValidation: new Date(),
+      validePar
+    };
+    await this.updateConge(updatedConge);
+  }
+
+  // ============================================
+  // AVAILABILITY CHECK
+  // ============================================
   isAgentAvailable(agentId: string, date: Date, demiJournee: DemiJournee): boolean {
     const agent = this.agents().find(a => a.id === agentId);
     if (!agent || !agent.actif) return false;
 
-    // Check regular availability
+    // Check disponibilites
     const jourSemaine = this.getJourSemaine(date);
-    const dispo = agent.disponibilites.find(
+    const dispo = agent.disponibilites?.find(
       d => d.jour === jourSemaine && d.demiJournee === demiJournee
     );
-    if (!dispo?.disponible) return false;
+    if (dispo && !dispo.disponible) return false;
 
-    // Check validated leaves only (not pending or refused)
-    const conges = this.conges().filter(c => {
-      // Only consider validated leaves
-      if (c.statut !== StatutConge.VALIDE) return false;
+    // Check conges
+    const congesAgent = this.conges().filter(c => 
+      c.agentId === agentId && 
+      c.statut === StatutConge.VALIDE
+    );
+
+    for (const conge of congesAgent) {
+      const dateDebut = new Date(conge.dateDebut);
+      const dateFin = new Date(conge.dateFin);
+      dateDebut.setHours(0, 0, 0, 0);
+      dateFin.setHours(23, 59, 59, 999);
       
-      const debut = new Date(c.dateDebut);
-      debut.setHours(0, 0, 0, 0);
-      const fin = new Date(c.dateFin);
-      fin.setHours(23, 59, 59, 999);
       const checkDate = new Date(date);
       checkDate.setHours(12, 0, 0, 0);
-      
-      if (checkDate < debut || checkDate > fin) return false;
-      if (c.agentId !== agentId) return false;
-      if (c.demiJournee === 'JOURNEE') return true;
-      if (c.demiJournee === demiJournee) return true;
-      return false;
-    });
 
-    return conges.length === 0;
+      if (checkDate >= dateDebut && checkDate <= dateFin) {
+        // Check demi-journee if specified
+        if (conge.demiJournee === 'JOURNEE') {
+          return false;
+        } else if (conge.demiJournee === 'MATIN' && demiJournee === DemiJournee.MATIN) {
+          return false;
+        } else if (conge.demiJournee === 'APRES_MIDI' && demiJournee === DemiJournee.APRES_MIDI) {
+          return false;
+        }
+      }
+    }
+
+    return true;
   }
 
   private getJourSemaine(date: Date): JourSemaine {
-    const jours = [
+    const jours: JourSemaine[] = [
       JourSemaine.DIMANCHE,
       JourSemaine.LUNDI,
       JourSemaine.MARDI,
@@ -446,15 +421,58 @@ export class DataService {
     return jours[date.getDay()];
   }
 
-  // Confirm planning and save to history
-  confirmPlanning(planning: PlanningSemaine): void {
-    planning.isConfirmed = true;
-    planning.dateConfirmation = new Date();
-    
-    // Update planning
-    const plannings = this.plannings().map(p => p.id === planning.id ? planning : p);
-    this.plannings.set(plannings);
-    this.savePlannings(plannings);
+  // ============================================
+  // EXPORT/IMPORT
+  // ============================================
+  exportData(): string {
+    return JSON.stringify({
+      agents: this.agents(),
+      historique: this.historique(),
+      plannings: this.plannings(),
+      conges: this.conges(),
+      exportDate: new Date().toISOString()
+    }, null, 2);
+  }
+
+  async importData(jsonData: string): Promise<boolean> {
+    try {
+      const data = JSON.parse(jsonData);
+      
+      // This would need to be implemented with Supabase bulk inserts
+      // For now, just update the signals
+      if (data.agents) {
+        this.agents.set(data.agents);
+      }
+      if (data.historique) {
+        const historique = data.historique.map((h: any) => ({
+          ...h,
+          date: new Date(h.date)
+        }));
+        this.historique.set(historique);
+      }
+      if (data.plannings) {
+        const plannings = data.plannings.map((p: any) => ({
+          ...p,
+          dateDebut: new Date(p.dateDebut),
+          dateFin: new Date(p.dateFin),
+          dateGeneration: new Date(p.dateGeneration)
+        }));
+        this.plannings.set(plannings);
+      }
+      if (data.conges) {
+        const conges = data.conges.map((c: any) => ({
+          ...c,
+          dateDebut: new Date(c.dateDebut),
+          dateFin: new Date(c.dateFin),
+          dateCreation: new Date(c.dateCreation)
+        }));
+        this.conges.set(conges);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error importing data:', error);
+      return false;
+    }
   }
 }
-

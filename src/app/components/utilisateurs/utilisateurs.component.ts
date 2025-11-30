@@ -656,7 +656,7 @@ export class UtilisateursComponent {
     }
   }
 
-  sauvegarderUtilisateur(): void {
+  async sauvegarderUtilisateur(): Promise<void> {
     if (!this.userForm.valid) return;
 
     const formValue = this.userForm.value;
@@ -666,12 +666,12 @@ export class UtilisateursComponent {
     if (formValue.agentLinkType === 'existing' && formValue.agentId) {
       agentId = formValue.agentId;
     } else if (formValue.agentLinkType === 'new') {
-      agentId = this.createNewAgent(formValue.nom, formValue.prenom);
+      agentId = await this.createNewAgent(formValue.nom, formValue.prenom);
     }
 
     // Unlink previous agent if changing
     if (this.utilisateurEnEdition?.agentId && this.utilisateurEnEdition.agentId !== agentId) {
-      this.unlinkAgent(this.utilisateurEnEdition.agentId);
+      await this.unlinkAgent(this.utilisateurEnEdition.agentId);
     }
 
     if (this.utilisateurEnEdition) {
@@ -683,11 +683,11 @@ export class UtilisateursComponent {
         actif: formValue.actif,
         agentId: agentId
       };
-      this.authService.updateUser(updatedUser);
+      await this.authService.updateUser(updatedUser);
       
       // Update agent link
       if (agentId) {
-        this.linkAgentToUser(agentId, updatedUser.id);
+        await this.linkAgentToUser(agentId, updatedUser.id);
       }
     } else {
       const userId = this.generateId();
@@ -703,7 +703,7 @@ export class UtilisateursComponent {
         agentId: agentId
       };
       
-      const result = this.authService.addUser(newUser);
+      const result = await this.authService.addUser(newUser);
       if (!result.success) {
         alert(result.message);
         return;
@@ -711,7 +711,7 @@ export class UtilisateursComponent {
 
       // Update agent link with the new user ID
       if (agentId) {
-        this.linkAgentToUser(agentId, userId);
+        await this.linkAgentToUser(agentId, userId);
       }
     }
 
@@ -720,7 +720,7 @@ export class UtilisateursComponent {
     this.fermerModal();
   }
 
-  private createNewAgent(nom: string, prenom: string): string {
+  private async createNewAgent(nom: string, prenom: string): Promise<string> {
     const initials = `${prenom.charAt(0)}${nom.charAt(0)}`.toUpperCase();
     const jours: JourSemaine[] = [
       JourSemaine.LUNDI, 
@@ -745,29 +745,29 @@ export class UtilisateursComponent {
       actif: true
     };
     
-    this.dataService.addAgent(newAgent);
+    await this.dataService.addAgent(newAgent);
     return newAgent.id;
   }
 
-  private linkAgentToUser(agentId: string, userId: string): void {
+  private async linkAgentToUser(agentId: string, userId: string): Promise<void> {
     const agent = this.agents().find(a => a.id === agentId);
     if (agent) {
       const updatedAgent = { ...agent, userId: userId };
-      this.dataService.updateAgent(updatedAgent);
+      await this.dataService.updateAgent(updatedAgent);
     }
   }
 
-  private unlinkAgent(agentId: string): void {
+  private async unlinkAgent(agentId: string): Promise<void> {
     const agent = this.agents().find(a => a.id === agentId);
     if (agent) {
       const updatedAgent = { ...agent, userId: undefined };
-      this.dataService.updateAgent(updatedAgent);
+      await this.dataService.updateAgent(updatedAgent);
     }
   }
 
-  supprimerUtilisateur(id: string): void {
+  async supprimerUtilisateur(id: string): Promise<void> {
     if (confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
-      const result = this.authService.deleteUser(id);
+      const result = await this.authService.deleteUser(id);
       if (!result.success) {
         alert(result.message);
         return;
@@ -794,7 +794,7 @@ export class UtilisateursComponent {
     }
   }
 
-  sauvegarderMotDePasse(): void {
+  async sauvegarderMotDePasse(): Promise<void> {
     if (!this.nouveauMotDePasse || !this.confirmationMotDePasse) {
       this.passwordError = 'Veuillez remplir tous les champs';
       return;
@@ -811,7 +811,7 @@ export class UtilisateursComponent {
     }
 
     if (this.utilisateurPassword) {
-      this.authService.changePassword(this.utilisateurPassword.id, this.nouveauMotDePasse);
+      await this.authService.changePassword(this.utilisateurPassword.id, this.nouveauMotDePasse);
       this.fermerModalPassword();
       alert('Mot de passe modifié avec succès');
     }

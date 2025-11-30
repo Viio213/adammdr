@@ -208,10 +208,10 @@ export class ParametresComponent {
     }
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const jsonData = e.target?.result as string;
-        const success = this.dataService.importData(jsonData);
+        const success = await this.dataService.importData(jsonData);
         
         if (success) {
           alert('Données importées avec succès !');

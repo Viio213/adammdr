@@ -523,7 +523,7 @@ export class LoginComponent {
     }
   }
 
-  onLogin(): void {
+  async onLogin(): Promise<void> {
     if (!this.username || !this.password) {
       this.errorMessage = 'Veuillez remplir tous les champs';
       return;
@@ -532,17 +532,19 @@ export class LoginComponent {
     this.isLoading = true;
     this.errorMessage = '';
 
-    // Simulate network delay for UX
-    setTimeout(() => {
-      const result = this.authService.login(this.username, this.password);
+    try {
+      const result = await this.authService.login(this.username, this.password);
       
       if (result.success) {
         this.router.navigate(['/planning']);
       } else {
         this.errorMessage = result.message;
       }
-      
+    } catch (error) {
+      this.errorMessage = 'Erreur de connexion. Veuillez réessayer.';
+      console.error('Login error:', error);
+    } finally {
       this.isLoading = false;
-    }, 500);
+    }
   }
 }

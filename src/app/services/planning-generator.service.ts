@@ -93,6 +93,7 @@ export class PlanningGeneratorService {
 
   /**
    * Generate planning for a half-day
+   * IMPORTANT: All available agents MUST be included in the planning
    */
   private generateDemiJournee(
     jour: JourSemaine,
@@ -107,7 +108,22 @@ export class PlanningGeneratorService {
       this.dataService.isAgentAvailable(agent.id, date, demiJournee)
     );
 
-    if (agentsDisponibles.length < 2) {
+    // If only 1 agent available, create a solo group
+    if (agentsDisponibles.length === 1) {
+      return {
+        jour,
+        demiJournee,
+        groupes: [{
+          id: this.generateId(),
+          agents: [agentsDisponibles[0]],
+          zoneId: 'zone1',
+          vehicule: false
+        }],
+        isGenerated: true
+      };
+    }
+
+    if (agentsDisponibles.length === 0) {
       return {
         jour,
         demiJournee,
@@ -130,9 +146,11 @@ export class PlanningGeneratorService {
 
     let zoneIndex = 0;
 
+    // First pass: create groups of 2 or 3
     while (agentsUtilises.size < agentsDisponibles.length) {
       const agentsRestants = agentsDisponibles.filter(a => !agentsUtilises.has(a.id));
 
+      // If only 1 agent left, we'll handle it after this loop
       if (agentsRestants.length < 2) break;
 
       // Determine group size (prefer binômes, max 1 trinôme per period if odd number)
@@ -178,6 +196,37 @@ export class PlanningGeneratorService {
       } else {
         break;
       }
+    }
+
+    // Second pass: ensure ALL remaining agents are assigned
+    // If there's 1 agent left, add them to the last group (making it a trinôme)
+    const agentsNonAssignes = agentsDisponibles.filter(a => !agentsUtilises.has(a.id));
+    
+    if (agentsNonAssignes.length > 0 && groupes.length > 0) {
+      // Add remaining agents to existing groups
+      for (const agent of agentsNonAssignes) {
+        // Find the smallest group to add this agent to
+        const plusPetitGroupe = groupes.reduce((min, g) => 
+          g.agents.length < min.agents.length ? g : min
+        , groupes[0]);
+        
+        plusPetitGroupe.agents.push(agent);
+        agentsUtilises.add(agent.id);
+      }
+    } else if (agentsNonAssignes.length > 0 && groupes.length === 0) {
+      // No groups created yet but we have agents - create a group with all of them
+      const zone = zonesDisponibles[0];
+      const ecole = zone.ecoles.length > 0 
+        ? zone.ecoles[Math.floor(Math.random() * zone.ecoles.length)]
+        : null;
+        
+      groupes.push({
+        id: this.generateId(),
+        agents: agentsNonAssignes,
+        zoneId: zone.id,
+        ecoleId: ecole?.id,
+        vehicule: false
+      });
     }
 
     return {
