@@ -79,16 +79,28 @@ export class SupabaseService {
   // AGENTS
   // ============================================
   async getAgents() {
-    const { data, error } = await this.supabase
+    // Get agents
+    const { data: agentsData, error: agentsError } = await this.supabase
       .from('agents')
-      .select(`
-        *,
-        disponibilites (*)
-      `)
+      .select('*')
       .order('nom');
     
-    if (error) throw error;
-    return (data || []).map(a => this.mapAgentFromDb(a));
+    if (agentsError) throw agentsError;
+
+    // Get all disponibilites
+    const { data: disposData, error: disposError } = await this.supabase
+      .from('disponibilites')
+      .select('*');
+    
+    if (disposError) {
+      console.warn('Could not load disponibilites:', disposError);
+    }
+
+    // Map and combine
+    return (agentsData || []).map(a => {
+      const agentDispos = (disposData || []).filter(d => d.agent_id === a.id);
+      return this.mapAgentFromDb({ ...a, disponibilites: agentDispos });
+    });
   }
 
   async createAgent(agent: any) {
