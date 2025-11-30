@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { Agent, JourSemaine, DemiJournee, JOURS_TRAVAIL } from '../models/agent.model';
 import { Groupe, PlanningEntry, PlanningJour, PlanningSemaine } from '../models/planning.model';
 import { HistoriqueEntry } from '../models/historique.model';
-import { ZONES, Zone } from '../models/zone.model';
+import { ZONES, Zone, getZonesByPriority } from '../models/zone.model';
 import { DataService } from './data.service';
 
 @Injectable({
@@ -120,11 +120,8 @@ export class PlanningGeneratorService {
     // Get zones already used by agents in the morning (for afternoon)
     const zonesMatin = this.getZonesMatinParAgent(entriesMemeJour);
 
-    // Available zones for this period
-    const zonesDisponibles = [...ZONES];
-    
-    // Shuffle zones for variety
-    this.shuffleArray(zonesDisponibles);
+    // Available zones sorted by priority (Z2, Z3 first, then Z4, then Z1)
+    const zonesDisponibles = getZonesByPriority();
 
     let zoneIndex = 0;
 

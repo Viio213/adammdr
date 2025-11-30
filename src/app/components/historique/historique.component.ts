@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DataService } from '../../services/data.service';
 import { ExcelExportService } from '../../services/excel-export.service';
+import { PdfExportService } from '../../services/pdf-export.service';
+import { AuthService } from '../../services/auth.service';
 import { HistoriqueEntry } from '../../models/historique.model';
 
 @Component({
@@ -33,11 +35,17 @@ import { HistoriqueEntry } from '../../models/historique.model';
             <button class="btn btn-secondary" (click)="reinitialiserFiltres()">
               Réinitialiser
             </button>
-            <button class="btn btn-success" (click)="exporterHistorique()">
+            <button *ngIf="canEdit" class="btn btn-success" (click)="exporterHistorique()">
               Export JSON
             </button>
             <button class="btn btn-success" (click)="exporterExcel()">
               Export Excel
+            </button>
+            <button class="btn btn-primary" (click)="exporterPdf()">
+              Export PDF
+            </button>
+            <button class="btn btn-info" (click)="imprimerPdf()">
+              Imprimer
             </button>
           </div>
         </div>
@@ -61,7 +69,7 @@ import { HistoriqueEntry } from '../../models/historique.model';
                 <th>Mission</th>
                 <th>Réunion</th>
                 <th>Commentaires</th>
-                <th>Actions</th>
+                <th *ngIf="canEdit">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -77,37 +85,52 @@ import { HistoriqueEntry } from '../../models/historique.model';
                   </span>
                 </td>
                 <td>
-                  <input 
-                    type="text" 
-                    [(ngModel)]="entry.mission" 
-                    class="form-control inline-input"
-                    (blur)="sauvegarderEntry(entry)"
-                  />
+                  <ng-container *ngIf="canEdit; else readOnlyMission">
+                    <input 
+                      type="text" 
+                      [(ngModel)]="entry.mission" 
+                      class="form-control inline-input"
+                      (blur)="sauvegarderEntry(entry)"
+                    />
+                  </ng-container>
+                  <ng-template #readOnlyMission>
+                    {{ entry.mission || '-' }}
+                  </ng-template>
                 </td>
                 <td>
-                  <input 
-                    type="text" 
-                    [(ngModel)]="entry.reunion" 
-                    class="form-control inline-input"
-                    (blur)="sauvegarderEntry(entry)"
-                  />
+                  <ng-container *ngIf="canEdit; else readOnlyReunion">
+                    <input 
+                      type="text" 
+                      [(ngModel)]="entry.reunion" 
+                      class="form-control inline-input"
+                      (blur)="sauvegarderEntry(entry)"
+                    />
+                  </ng-container>
+                  <ng-template #readOnlyReunion>
+                    {{ entry.reunion || '-' }}
+                  </ng-template>
                 </td>
                 <td>
-                  <input 
-                    type="text" 
-                    [(ngModel)]="entry.commentaires" 
-                    class="form-control inline-input"
-                    (blur)="sauvegarderEntry(entry)"
-                  />
+                  <ng-container *ngIf="canEdit; else readOnlyCommentaires">
+                    <input 
+                      type="text" 
+                      [(ngModel)]="entry.commentaires" 
+                      class="form-control inline-input"
+                      (blur)="sauvegarderEntry(entry)"
+                    />
+                  </ng-container>
+                  <ng-template #readOnlyCommentaires>
+                    {{ entry.commentaires || '-' }}
+                  </ng-template>
                 </td>
-                <td>
+                <td *ngIf="canEdit">
                   <button class="btn btn-danger btn-sm" (click)="supprimerEntry(entry.id)">
                     Supprimer
                   </button>
                 </td>
               </tr>
               <tr *ngIf="historiqueFiltre().length === 0">
-                <td colspan="10" class="text-center">Aucun historique disponible</td>
+                <td [attr.colspan]="canEdit ? 10 : 9" class="text-center">Aucun historique disponible</td>
               </tr>
             </tbody>
           </table>
@@ -142,6 +165,15 @@ import { HistoriqueEntry } from '../../models/historique.model';
     
     .date-input {
       min-width: 160px;
+    }
+    
+    .btn-info {
+      background: #0ea5e9;
+      color: white;
+    }
+
+    .btn-info:hover {
+      background: #0284c7;
     }
     
     .historique-stats {
@@ -201,11 +233,15 @@ import { HistoriqueEntry } from '../../models/historique.model';
 export class HistoriqueComponent {
   private dataService = inject(DataService);
   private excelExport = inject(ExcelExportService);
+  private pdfExport = inject(PdfExportService);
+  private authService = inject(AuthService);
 
   historique = signal<HistoriqueEntry[]>([]);
   historiqueFiltre = signal<HistoriqueEntry[]>([]);
   dateDebut: string = '';
   dateFin: string = '';
+
+  canEdit = this.authService.hasPermission('canEditHistorique');
 
   constructor() {
     this.chargerHistorique();
@@ -244,11 +280,13 @@ export class HistoriqueComponent {
   }
 
   sauvegarderEntry(entry: HistoriqueEntry): void {
+    if (!this.canEdit) return;
     this.dataService.updateHistoriqueEntry(entry);
     this.chargerHistorique();
   }
 
   supprimerEntry(id: string): void {
+    if (!this.canEdit) return;
     if (confirm('Êtes-vous sûr de vouloir supprimer cette entrée ?')) {
       this.dataService.deleteHistoriqueEntry(id);
       this.chargerHistorique();
@@ -270,8 +308,15 @@ export class HistoriqueComponent {
     this.excelExport.exportHistoriqueToExcel(this.historiqueFiltre());
   }
 
+  exporterPdf(): void {
+    this.pdfExport.exportHistoriqueToPdf(this.historiqueFiltre());
+  }
+
+  imprimerPdf(): void {
+    this.pdfExport.printHistorique(this.historiqueFiltre());
+  }
+
   formatDate(date: Date): string {
     return new Date(date).toLocaleDateString('fr-FR');
   }
 }
-

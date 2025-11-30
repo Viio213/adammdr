@@ -68,7 +68,8 @@ export class AuthService {
   hasPermission(permission: keyof typeof ROLE_PERMISSIONS[UserRole.ADMIN]): boolean {
     const user = this.currentUser();
     if (!user) return false;
-    return ROLE_PERMISSIONS[user.role][permission];
+    const permissions = ROLE_PERMISSIONS[user.role] as Record<string, boolean>;
+    return permissions[permission] ?? false;
   }
 
   /**

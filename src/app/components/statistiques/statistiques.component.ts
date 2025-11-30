@@ -1,6 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { StatistiquesService } from '../../services/statistiques.service';
+import { PdfExportService } from '../../services/pdf-export.service';
 import { 
   StatistiqueBinome, 
   StatistiqueZone, 
@@ -15,6 +16,15 @@ import {
   imports: [CommonModule],
   template: `
     <div class="container">
+      <!-- Header with export buttons -->
+      <div class="stats-header">
+        <h1>Statistiques</h1>
+        <div class="header-actions">
+          <button class="btn btn-primary" (click)="exporterPdf()">Export PDF</button>
+          <button class="btn btn-info" (click)="imprimerPdf()">Imprimer</button>
+        </div>
+      </div>
+
       <!-- Quick Stats Cards -->
       <div class="stats-cards">
         <div class="stat-card">
@@ -239,6 +249,51 @@ import {
     </div>
   `,
   styles: [`
+    .stats-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .stats-header h1 {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 700;
+      color: #1e293b;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #2d5016 0%, #3d6b1e 100%);
+      color: #fff;
+    }
+
+    .btn-primary:hover { background: #1f3a0f; }
+
+    .btn-info {
+      background: #0ea5e9;
+      color: #fff;
+    }
+
+    .btn-info:hover { background: #0284c7; }
+
     .stats-cards {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -443,6 +498,7 @@ import {
 })
 export class StatistiquesComponent {
   private statistiquesService = inject(StatistiquesService);
+  private pdfExport = inject(PdfExportService);
 
   statistiquesBinomes = signal<StatistiqueBinome[]>([]);
   statistiquesZones = signal<StatistiqueZone[]>([]);
@@ -497,5 +553,21 @@ export class StatistiquesComponent {
 
   formatDate(date: Date): string {
     return new Date(date).toLocaleDateString('fr-FR');
+  }
+
+  exporterPdf(): void {
+    this.pdfExport.exportStatistiquesToPdf(
+      this.pairesPlusFrequentes(),
+      this.statistiquesAgents(),
+      this.statistiquesZones()
+    );
+  }
+
+  imprimerPdf(): void {
+    this.pdfExport.printStatistiques(
+      this.pairesPlusFrequentes(),
+      this.statistiquesAgents(),
+      this.statistiquesZones()
+    );
   }
 }

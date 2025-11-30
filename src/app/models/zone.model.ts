@@ -12,6 +12,7 @@ export interface Zone {
   ecoles: Ecole[];
   isExterieur: boolean; // Zone 1 and 4 are "extérieur"
   marcheJour?: JourMarche; // Optional market day
+  priorite: number; // Priority for coverage: lower = higher priority (Z2,Z3 = 1, Z4 = 2, Z1 = 3)
 }
 
 export interface JourMarche {
@@ -21,12 +22,14 @@ export interface JourMarche {
 }
 
 // Predefined zones with schools
+// Priority: Zone 2 & 3 first (priority 1), then Zone 4 (priority 2), then Zone 1 (priority 3)
 export const ZONES: Zone[] = [
   {
     id: 'zone1',
     nom: 'Zone 1 - Saint-Servais',
     ecoles: [{ id: 'e1', nom: 'E1', zoneId: 'zone1' }],
-    isExterieur: true
+    isExterieur: true,
+    priorite: 3 // Lowest priority - covered last
   },
   {
     id: 'zone2',
@@ -35,7 +38,8 @@ export const ZONES: Zone[] = [
       { id: 'e4', nom: 'E4', zoneId: 'zone2' },
       { id: 'e8', nom: 'E8', zoneId: 'zone2' }
     ],
-    isExterieur: false
+    isExterieur: false,
+    priorite: 1 // Highest priority - covered first
   },
   {
     id: 'zone3',
@@ -44,7 +48,8 @@ export const ZONES: Zone[] = [
       { id: 'e71', nom: 'E71', zoneId: 'zone3' },
       { id: 'e6', nom: 'E6', zoneId: 'zone3' }
     ],
-    isExterieur: false
+    isExterieur: false,
+    priorite: 1 // Highest priority - covered first
   },
   {
     id: 'zone4',
@@ -55,9 +60,15 @@ export const ZONES: Zone[] = [
       jour: 'JEUDI',
       periode: 'MATIN',
       description: 'Marché de Jambes'
-    }
+    },
+    priorite: 2 // Medium priority
   }
 ];
+
+// Get zones sorted by priority (for coverage allocation)
+export function getZonesByPriority(): Zone[] {
+  return [...ZONES].sort((a, b) => a.priorite - b.priorite);
+}
 
 // Helper to get zone by id
 export function getZoneById(id: string): Zone | undefined {

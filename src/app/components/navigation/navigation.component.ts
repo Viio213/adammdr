@@ -12,7 +12,7 @@ import { ROLE_LABELS } from '../../models/user.model';
     <nav class="navbar" *ngIf="authService.isLoggedIn()">
       <div class="container">
         <div class="nav-brand">
-          <h1>Planning ADAMMDR</h1>
+          <h1>SmartPlanner</h1>
         </div>
         <ul class="nav-links">
           <li><a routerLink="/planning" routerLinkActive="active">Planning</a></li>

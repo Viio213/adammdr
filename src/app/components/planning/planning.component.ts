@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { PlanningGeneratorService } from '../../services/planning-generator.service';
 import { DataService } from '../../services/data.service';
 import { ExcelExportService } from '../../services/excel-export.service';
+import { PdfExportService } from '../../services/pdf-export.service';
 import { AuthService } from '../../services/auth.service';
 import { PlanningSemaine, PlanningJour, Groupe } from '../../models/planning.model';
 import { JourSemaine, DemiJournee, JOURS_TRAVAIL } from '../../models/agent.model';
@@ -42,6 +43,18 @@ import { ZONES } from '../../models/zone.model';
               (click)="exporterExcel()" 
               [disabled]="!planningActuel()">
               Export Excel
+            </button>
+            <button 
+              class="btn btn-primary" 
+              (click)="exporterPdf()" 
+              [disabled]="!planningActuel()">
+              Export PDF
+            </button>
+            <button 
+              class="btn btn-info" 
+              (click)="imprimerPdf()" 
+              [disabled]="!planningActuel()">
+              Imprimer
             </button>
           </div>
         </div>
@@ -412,6 +425,13 @@ import { ZONES } from '../../models/zone.model';
     
     .btn-generate:hover { background: #2563eb; }
     
+    .btn-info {
+      background: #0ea5e9;
+      color: #fff;
+    }
+    
+    .btn-info:hover { background: #0284c7; }
+    
     .planning-info {
       display: flex;
       align-items: center;
@@ -643,6 +663,7 @@ export class PlanningComponent {
   private planningGenerator = inject(PlanningGeneratorService);
   private dataService = inject(DataService);
   private excelExport = inject(ExcelExportService);
+  private pdfExport = inject(PdfExportService);
   private authService = inject(AuthService);
 
   planningActuel = signal<PlanningSemaine | null>(null);
@@ -742,6 +763,20 @@ export class PlanningComponent {
     const planning = this.planningActuel();
     if (planning) {
       this.excelExport.exportPlanningToExcel(planning);
+    }
+  }
+
+  exporterPdf(): void {
+    const planning = this.planningActuel();
+    if (planning) {
+      this.pdfExport.exportPlanningToPdf(planning);
+    }
+  }
+
+  imprimerPdf(): void {
+    const planning = this.planningActuel();
+    if (planning) {
+      this.pdfExport.printPlanning(planning);
     }
   }
 

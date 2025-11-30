@@ -2,7 +2,7 @@ import { Injectable, signal } from '@angular/core';
 import { Agent, JourSemaine, DemiJournee, AGENTS_DEFAUT, TypeContrat } from '../models/agent.model';
 import { PlanningSemaine } from '../models/planning.model';
 import { HistoriqueEntry } from '../models/historique.model';
-import { Conge } from '../models/conge.model';
+import { Conge, StatutConge } from '../models/conge.model';
 
 @Injectable({
   providedIn: 'root'
@@ -318,7 +318,10 @@ export class DataService {
           ...c,
           dateDebut: new Date(c.dateDebut),
           dateFin: new Date(c.dateFin),
-          dateCreation: new Date(c.dateCreation)
+          dateCreation: new Date(c.dateCreation),
+          // Backward compatibility: add status if missing
+          statut: c.statut || StatutConge.VALIDE,
+          dateValidation: c.dateValidation ? new Date(c.dateValidation) : undefined
         }));
       }
     } catch (error) {
@@ -347,8 +350,11 @@ export class DataService {
     );
     if (!dispo?.disponible) return false;
 
-    // Check leaves
+    // Check validated leaves only (not pending or refused)
     const conges = this.conges().filter(c => {
+      // Only consider validated leaves
+      if (c.statut !== StatutConge.VALIDE) return false;
+      
       const debut = new Date(c.dateDebut);
       debut.setHours(0, 0, 0, 0);
       const fin = new Date(c.dateFin);

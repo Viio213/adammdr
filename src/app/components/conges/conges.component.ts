@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { DataService } from '../../services/data.service';
 import { AuthService } from '../../services/auth.service';
-import { Conge, TypeConge, TYPE_CONGE_LABELS } from '../../models/conge.model';
+import { Conge, TypeConge, TYPE_CONGE_LABELS, StatutConge, STATUT_CONGE_LABELS } from '../../models/conge.model';
 import { Agent } from '../../models/agent.model';
 
 @Component({
@@ -20,12 +20,19 @@ import { Agent } from '../../models/agent.model';
           </button>
         </div>
 
-        <!-- Filter for admin -->
-        <div class="filters" *ngIf="isAdmin">
+        <!-- Filter for admin/chef -->
+        <div class="filters" *ngIf="canViewAllConges">
           <label>Filtrer par agent :</label>
           <select [(ngModel)]="filtreAgent" (change)="appliquerFiltre()" class="form-control filter-select">
             <option value="">Tous les agents</option>
             <option *ngFor="let agent of agents()" [value]="agent.id">{{ agent.nom }}</option>
+          </select>
+          <label>Statut :</label>
+          <select [(ngModel)]="filtreStatut" (change)="appliquerFiltre()" class="form-control filter-select">
+            <option value="">Tous</option>
+            <option [value]="StatutConge.EN_ATTENTE">En traitement</option>
+            <option [value]="StatutConge.VALIDE">Validé</option>
+            <option [value]="StatutConge.REFUSE">Refusé</option>
           </select>
         </div>
 
@@ -38,6 +45,7 @@ import { Agent } from '../../models/agent.model';
                 <th>Date début</th>
                 <th>Date fin</th>
                 <th>Période</th>
+                <th>Statut</th>
                 <th>Commentaire</th>
                 <th>Actions</th>
               </tr>
@@ -53,25 +61,47 @@ import { Agent } from '../../models/agent.model';
                 <td>{{ formatDate(conge.dateDebut) }}</td>
                 <td>{{ formatDate(conge.dateFin) }}</td>
                 <td>{{ getPeriodeLabel(conge.demiJournee) }}</td>
-                <td>{{ conge.commentaire || '-' }}</td>
                 <td>
-                  <button 
-                    class="btn btn-secondary btn-sm" 
-                    (click)="editerConge(conge)"
-                    [disabled]="!canEditConge(conge)">
-                    Modifier
-                  </button>
-                  <button 
-                    class="btn btn-danger btn-sm" 
-                    (click)="supprimerConge(conge.id)"
-                    [disabled]="!canEditConge(conge)">
-                    Supprimer
-                  </button>
+                  <span [class]="'badge ' + getStatutBadgeClass(conge.statut)">
+                    {{ getStatutLabel(conge.statut) }}
+                  </span>
+                </td>
+                <td>{{ conge.commentaire || '-' }}</td>
+                <td class="actions-cell">
+                  <!-- Validation buttons for chef/admin -->
+                  <ng-container *ngIf="canValidateConge && conge.statut === StatutConge.EN_ATTENTE">
+                    <button 
+                      class="btn btn-success btn-sm" 
+                      (click)="validerConge(conge)"
+                      title="Valider la demande">
+                      ✓ Valider
+                    </button>
+                    <button 
+                      class="btn btn-danger btn-sm" 
+                      (click)="refuserConge(conge)"
+                      title="Refuser la demande">
+                      ✗ Refuser
+                    </button>
+                  </ng-container>
+                  <!-- Edit/Delete for own requests or admin -->
+                  <ng-container *ngIf="canEditConge(conge)">
+                    <button 
+                      class="btn btn-secondary btn-sm" 
+                      (click)="editerConge(conge)"
+                      [disabled]="conge.statut === StatutConge.VALIDE">
+                      Modifier
+                    </button>
+                    <button 
+                      class="btn btn-danger btn-sm" 
+                      (click)="supprimerConge(conge.id)">
+                      Supprimer
+                    </button>
+                  </ng-container>
                 </td>
               </tr>
               <tr *ngIf="congesFiltres().length === 0">
-                <td colspan="7" class="text-center">
-                  {{ isAdmin ? 'Aucun congé enregistré' : 'Vous n\\'avez aucun congé enregistré' }}
+                <td colspan="8" class="text-center">
+                  {{ canViewAllConges ? 'Aucun congé enregistré' : 'Vous n\\'avez aucun congé enregistré' }}
                 </td>
               </tr>
             </tbody>
@@ -79,22 +109,28 @@ import { Agent } from '../../models/agent.model';
         </div>
 
         <!-- Summary -->
-        <div class="conges-summary" *ngIf="!isAdmin && monAgent()">
+        <div class="conges-summary" *ngIf="!canViewAllConges && monAgent()">
           <h3>Mon résumé</h3>
           <div class="summary-grid">
             <div class="summary-item">
-              <span class="summary-label">Congés annuels</span>
-              <span class="summary-value">{{ countCongesByType(TypeConge.CONGE_ANNUEL) }}</span>
+              <span class="summary-label">En attente</span>
+              <span class="summary-value pending">{{ countCongesByStatut(StatutConge.EN_ATTENTE) }}</span>
             </div>
             <div class="summary-item">
-              <span class="summary-label">Heures-dites</span>
-              <span class="summary-value">{{ countCongesByType(TypeConge.HEURE_DITE) }}</span>
+              <span class="summary-label">Validés</span>
+              <span class="summary-value validated">{{ countCongesByStatut(StatutConge.VALIDE) }}</span>
             </div>
             <div class="summary-item">
-              <span class="summary-label">Récupérations</span>
-              <span class="summary-value">{{ countCongesByType(TypeConge.RECUPERATION) }}</span>
+              <span class="summary-label">Refusés</span>
+              <span class="summary-value refused">{{ countCongesByStatut(StatutConge.REFUSE) }}</span>
             </div>
           </div>
+        </div>
+
+        <!-- Pending requests alert for chef/admin -->
+        <div class="pending-alert" *ngIf="canValidateConge && pendingCount() > 0">
+          <span class="pending-icon">⏳</span>
+          <strong>{{ pendingCount() }} demande(s) en attente de validation</strong>
         </div>
       </div>
     </div>
@@ -107,8 +143,8 @@ import { Agent } from '../../models/agent.model';
           <button class="btn-close" (click)="fermerModal()">×</button>
         </div>
         <form [formGroup]="congeForm" (ngSubmit)="sauvegarderConge()">
-          <!-- Agent selection (admin only) -->
-          <div class="form-group" *ngIf="isAdmin">
+          <!-- Agent selection (admin/chef only) -->
+          <div class="form-group" *ngIf="canViewAllConges">
             <label class="form-label">Agent *</label>
             <select formControlName="agentId" class="form-control">
               <option value="">Sélectionner un agent</option>
@@ -187,6 +223,7 @@ import { Agent } from '../../models/agent.model';
       padding: 16px;
       background: #f8fafc;
       border-radius: 10px;
+      flex-wrap: wrap;
     }
 
     .filters label {
@@ -195,13 +232,17 @@ import { Agent } from '../../models/agent.model';
     }
 
     .filter-select {
-      max-width: 250px;
+      max-width: 200px;
     }
 
     .btn-sm {
       padding: 6px 12px;
       font-size: 12px;
       margin: 0 2px;
+    }
+
+    .actions-cell {
+      white-space: nowrap;
     }
 
     .text-center {
@@ -223,6 +264,27 @@ import { Agent } from '../../models/agent.model';
     .badge-recup {
       background: #d1fae5;
       color: #065f46;
+    }
+
+    .badge-pending {
+      background: #fef3c7;
+      color: #92400e;
+      animation: pulse 2s infinite;
+    }
+
+    .badge-validated {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .badge-refused {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
     }
 
     .conges-summary {
@@ -263,7 +325,37 @@ import { Agent } from '../../models/agent.model';
     .summary-value {
       font-size: 24px;
       font-weight: 700;
-      color: #1e293b;
+    }
+
+    .summary-value.pending {
+      color: #f59e0b;
+    }
+
+    .summary-value.validated {
+      color: #10b981;
+    }
+
+    .summary-value.refused {
+      color: #ef4444;
+    }
+
+    .pending-alert {
+      margin-top: 24px;
+      padding: 16px 20px;
+      background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+      border-radius: 10px;
+      border-left: 4px solid #f59e0b;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .pending-icon {
+      font-size: 24px;
+    }
+
+    .pending-alert strong {
+      color: #92400e;
     }
 
     .modal {
@@ -330,6 +422,18 @@ import { Agent } from '../../models/agent.model';
       gap: 16px;
     }
 
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 600;
+      color: #475569;
+      font-size: 14px;
+    }
+
     .modal-actions {
       display: flex;
       justify-content: flex-end;
@@ -352,10 +456,14 @@ export class CongesComponent {
   afficherModal = false;
   congeEnEdition: Conge | null = null;
   filtreAgent = '';
+  filtreStatut = '';
 
   readonly TypeConge = TypeConge;
+  readonly StatutConge = StatutConge;
   
-  isAdmin = this.authService.isAdmin();
+  // Permissions
+  canViewAllConges = this.authService.hasPermission('canViewStaff');
+  canValidateConge = this.authService.hasPermission('canValidateConge');
   
   // Get current user's linked agent
   monAgent = computed(() => {
@@ -364,8 +472,13 @@ export class CongesComponent {
     return this.agents().find(a => a.userId === user.id) || null;
   });
 
+  // Count pending requests
+  pendingCount = computed(() => {
+    return this.conges().filter(c => c.statut === StatutConge.EN_ATTENTE).length;
+  });
+
   congeForm: FormGroup = this.fb.group({
-    agentId: ['', this.isAdmin ? Validators.required : []],
+    agentId: ['', this.canViewAllConges ? Validators.required : []],
     type: [TypeConge.CONGE_ANNUEL, Validators.required],
     dateDebut: ['', Validators.required],
     dateFin: ['', Validators.required],
@@ -382,8 +495,8 @@ export class CongesComponent {
     
     let conges = this.dataService.getConges();
     
-    // Filter for non-admin users to only see their own leaves
-    if (!this.isAdmin) {
+    // Filter for users to only see their own leaves
+    if (!this.canViewAllConges) {
       const agent = this.monAgent();
       if (agent) {
         conges = conges.filter(c => c.agentId === agent.id);
@@ -406,14 +519,44 @@ export class CongesComponent {
       filtered = filtered.filter(c => c.agentId === this.filtreAgent);
     }
     
+    if (this.filtreStatut) {
+      filtered = filtered.filter(c => c.statut === this.filtreStatut);
+    }
+    
     this.congesFiltres.set(filtered);
   }
 
   canEditConge(conge: Conge): boolean {
-    if (this.isAdmin) return true;
+    if (this.authService.isAdmin()) return true;
     
     const agent = this.monAgent();
     return agent !== null && conge.agentId === agent.id;
+  }
+
+  validerConge(conge: Conge): void {
+    if (confirm('Valider cette demande de congé ?')) {
+      const updatedConge: Conge = {
+        ...conge,
+        statut: StatutConge.VALIDE,
+        dateValidation: new Date(),
+        validePar: this.authService.currentUser()?.id
+      };
+      this.dataService.updateConge(updatedConge);
+      this.chargerDonnees();
+    }
+  }
+
+  refuserConge(conge: Conge): void {
+    if (confirm('Refuser cette demande de congé ?')) {
+      const updatedConge: Conge = {
+        ...conge,
+        statut: StatutConge.REFUSE,
+        dateValidation: new Date(),
+        validePar: this.authService.currentUser()?.id
+      };
+      this.dataService.updateConge(updatedConge);
+      this.chargerDonnees();
+    }
   }
 
   getTypeLabel(type: TypeConge): string {
@@ -425,6 +568,19 @@ export class CongesComponent {
       case TypeConge.CONGE_ANNUEL: return 'badge-annuel';
       case TypeConge.HEURE_DITE: return 'badge-heure';
       case TypeConge.RECUPERATION: return 'badge-recup';
+      default: return '';
+    }
+  }
+
+  getStatutLabel(statut: StatutConge): string {
+    return STATUT_CONGE_LABELS[statut] || 'Inconnu';
+  }
+
+  getStatutBadgeClass(statut: StatutConge): string {
+    switch (statut) {
+      case StatutConge.EN_ATTENTE: return 'badge-pending';
+      case StatutConge.VALIDE: return 'badge-validated';
+      case StatutConge.REFUSE: return 'badge-refused';
       default: return '';
     }
   }
@@ -441,8 +597,8 @@ export class CongesComponent {
     return new Date(date).toLocaleDateString('fr-FR');
   }
 
-  countCongesByType(type: TypeConge): number {
-    return this.conges().filter(c => c.type === type).length;
+  countCongesByStatut(statut: StatutConge): number {
+    return this.conges().filter(c => c.statut === statut).length;
   }
 
   ouvrirModalAjout(): void {
@@ -489,7 +645,7 @@ export class CongesComponent {
     let agentId: string;
     let agentNom: string;
     
-    if (this.isAdmin) {
+    if (this.canViewAllConges) {
       agentId = formValue.agentId;
       const agent = this.agents().find(a => a.id === agentId);
       agentNom = agent?.nom || '';
@@ -499,6 +655,11 @@ export class CongesComponent {
       agentId = agent.id;
       agentNom = agent.nom;
     }
+
+    // Determine initial status
+    // If admin/chef creates the leave, it's auto-validated
+    // If agent creates it, it's pending
+    const isAutoValidated = this.canValidateConge;
 
     const conge: Conge = {
       id: this.congeEnEdition?.id || this.generateId(),
@@ -510,7 +671,10 @@ export class CongesComponent {
       demiJournee: formValue.demiJournee,
       commentaire: formValue.commentaire,
       dateCreation: this.congeEnEdition?.dateCreation || new Date(),
-      creePar: this.authService.currentUser()?.id || ''
+      creePar: this.authService.currentUser()?.id || '',
+      statut: this.congeEnEdition?.statut || (isAutoValidated ? StatutConge.VALIDE : StatutConge.EN_ATTENTE),
+      dateValidation: isAutoValidated ? new Date() : undefined,
+      validePar: isAutoValidated ? this.authService.currentUser()?.id : undefined
     };
 
     if (this.congeEnEdition) {
@@ -538,4 +702,3 @@ export class CongesComponent {
     return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
   }
 }
-
