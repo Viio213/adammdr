@@ -533,7 +533,7 @@ export class CongesComponent {
     return agent !== null && conge.agentId === agent.id;
   }
 
-  validerConge(conge: Conge): void {
+  async validerConge(conge: Conge): Promise<void> {
     if (confirm('Valider cette demande de congé ?')) {
       const updatedConge: Conge = {
         ...conge,
@@ -541,12 +541,12 @@ export class CongesComponent {
         dateValidation: new Date(),
         validePar: this.authService.currentUser()?.id
       };
-      this.dataService.updateConge(updatedConge);
+      await this.dataService.updateConge(updatedConge);
       this.chargerDonnees();
     }
   }
 
-  refuserConge(conge: Conge): void {
+  async refuserConge(conge: Conge): Promise<void> {
     if (confirm('Refuser cette demande de congé ?')) {
       const updatedConge: Conge = {
         ...conge,
@@ -554,7 +554,7 @@ export class CongesComponent {
         dateValidation: new Date(),
         validePar: this.authService.currentUser()?.id
       };
-      this.dataService.updateConge(updatedConge);
+      await this.dataService.updateConge(updatedConge);
       this.chargerDonnees();
     }
   }
@@ -636,7 +636,7 @@ export class CongesComponent {
     }
   }
 
-  sauvegarderConge(): void {
+  async sauvegarderConge(): Promise<void> {
     if (!this.congeForm.valid) return;
 
     const formValue = this.congeForm.value;
@@ -669,18 +669,18 @@ export class CongesComponent {
     };
 
     if (this.congeEnEdition) {
-      this.dataService.updateConge(conge);
+      await this.dataService.updateConge(conge);
     } else {
-      this.dataService.addConge(conge);
+      await this.dataService.addConge(conge);
     }
 
     this.chargerDonnees();
     this.fermerModal();
   }
 
-  supprimerConge(id: string): void {
+  async supprimerConge(id: string): Promise<void> {
     if (confirm('Êtes-vous sûr de vouloir supprimer ce congé ?')) {
-      this.dataService.deleteConge(id);
+      await this.dataService.deleteConge(id);
       this.chargerDonnees();
     }
   }
