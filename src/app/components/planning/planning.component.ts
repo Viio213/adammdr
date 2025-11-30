@@ -953,33 +953,40 @@ export class PlanningComponent {
     this.allAgents.set(this.dataService.getAgents());
   }
 
-  genererPlanningHebdo(): void {
+  async genererPlanningHebdo(): Promise<void> {
+    // Refresh data from Supabase before generating (to get latest conges)
+    await this.dataService.refreshAgents();
+    await this.dataService.refreshConges();
+    
     // Get the Monday of the selected week (fix: always start on Monday)
     const selectedDate = new Date(this.dateDebutSemaine);
     const dateDebut = this.getLundiSemaine(selectedDate);
     
     const planning = this.planningGenerator.generatePlanningSemaine(dateDebut);
     
-    this.dataService.addPlanning(planning);
+    await this.dataService.addPlanning(planning);
     this.planningActuel.set(planning);
     
     // Update the date input to show the actual Monday
     this.dateDebutSemaine = dateDebut.toISOString().split('T')[0];
   }
 
-  genererJour(jour: JourSemaine): void {
+  async genererJour(jour: JourSemaine): Promise<void> {
     const planning = this.planningActuel();
     if (!planning) return;
 
+    // Refresh conges before regenerating
+    await this.dataService.refreshConges();
+
     const updatedPlanning = this.planningGenerator.regenerateJour(planning, jour);
     
-    // Update in storage and save to localStorage
-    this.dataService.updatePlanning(updatedPlanning);
+    // Update in storage
+    await this.dataService.updatePlanning(updatedPlanning);
     
     this.planningActuel.set(updatedPlanning);
   }
 
-  confirmerPlanning(): void {
+  async confirmerPlanning(): Promise<void> {
     const planning = this.planningActuel();
     if (!planning || planning.isConfirmed) return;
 
@@ -988,11 +995,11 @@ export class PlanningComponent {
     }
 
     // Confirm and save to history
-    this.dataService.confirmPlanning(planning);
+    await this.dataService.confirmPlanning(planning);
     
     // Convert to historique entries
     const historiqueEntries = this.planningGenerator.planningToHistorique(planning);
-    this.dataService.addHistoriqueEntries(historiqueEntries);
+    await this.dataService.addHistoriqueEntries(historiqueEntries);
 
     // Reload
     this.planningActuel.set({ ...planning, isConfirmed: true, dateConfirmation: new Date() });
@@ -1050,10 +1057,10 @@ export class PlanningComponent {
     this.sauvegarderPlanning();
   }
 
-  sauvegarderPlanning(): void {
+  async sauvegarderPlanning(): Promise<void> {
     const planning = this.planningActuel();
     if (planning) {
-      this.dataService.updatePlanning(planning);
+      await this.dataService.updatePlanning(planning);
     }
   }
 

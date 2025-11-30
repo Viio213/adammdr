@@ -469,6 +469,14 @@ export class CongesComponent {
   monAgent = computed(() => {
     const user = this.authService.currentUser();
     if (!user) return null;
+    
+    // Check if user has agentId set
+    if (user.agentId) {
+      const agentById = this.agents().find(a => a.id === user.agentId);
+      if (agentById) return agentById;
+    }
+    
+    // Fallback: check if an agent has this user's ID
     return this.agents().find(a => a.userId === user.id) || null;
   });
 
@@ -491,9 +499,10 @@ export class CongesComponent {
   }
 
   async chargerDonnees(): Promise<void> {
-    this.agents.set(this.dataService.getAgents());
+    // Load agents and conges from Supabase database
+    const agents = await this.dataService.refreshAgents();
+    this.agents.set(agents);
     
-    // Load conges from Supabase database
     let conges = await this.dataService.refreshConges();
     
     // Filter for users to only see their own leaves

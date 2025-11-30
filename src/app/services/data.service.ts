@@ -118,6 +118,20 @@ export class DataService {
     return this.agents();
   }
 
+  /**
+   * Refresh agents from Supabase database
+   */
+  async refreshAgents(): Promise<Agent[]> {
+    try {
+      const agents = await this.supabase.getAgents();
+      this.agents.set(agents);
+      return agents;
+    } catch (error) {
+      console.error('Error refreshing agents from Supabase:', error);
+      return this.agents();
+    }
+  }
+
   async addAgent(agent: Agent): Promise<void> {
     try {
       const newAgent = await this.supabase.createAgent(agent);
