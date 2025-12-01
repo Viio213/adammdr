@@ -159,6 +159,7 @@ import { Agent, JourSemaine, DemiJournee } from '../../models/agent.model';
             <label class="form-label">Type de congé *</label>
             <select formControlName="type" class="form-control">
               <option [value]="TypeConge.CONGE_ANNUEL">{{ getTypeLabel(TypeConge.CONGE_ANNUEL) }}</option>
+              <option [value]="TypeConge.CONGE_MALADIE">{{ getTypeLabel(TypeConge.CONGE_MALADIE) }}</option>
               <option [value]="TypeConge.HEURE_DITE">{{ getTypeLabel(TypeConge.HEURE_DITE) }}</option>
               <option [value]="TypeConge.RECUPERATION">{{ getTypeLabel(TypeConge.RECUPERATION) }}</option>
             </select>
@@ -270,6 +271,11 @@ import { Agent, JourSemaine, DemiJournee } from '../../models/agent.model';
     .badge-annuel {
       background: #dbeafe;
       color: #1e40af;
+    }
+
+    .badge-maladie {
+      background: #fee2e2;
+      color: #991b1b;
     }
 
     .badge-heure {
@@ -640,6 +646,7 @@ export class CongesComponent {
   getTypeBadgeClass(type: TypeConge): string {
     switch (type) {
       case TypeConge.CONGE_ANNUEL: return 'badge-annuel';
+      case TypeConge.CONGE_MALADIE: return 'badge-maladie';
       case TypeConge.HEURE_DITE: return 'badge-heure';
       case TypeConge.RECUPERATION: return 'badge-recup';
       default: return '';

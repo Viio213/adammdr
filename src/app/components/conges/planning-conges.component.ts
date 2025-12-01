@@ -328,6 +328,11 @@ interface JourPlanningConge {
       color: #1e40af;
     }
 
+    .conge-type.maladie {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
     .conge-type.heure {
       background: #fef3c7;
       color: #92400e;
@@ -543,6 +548,7 @@ export class PlanningCongesComponent {
   getCongeTypeClass(type: TypeConge): string {
     const classes: { [key in TypeConge]: string } = {
       [TypeConge.CONGE_ANNUEL]: 'annuel',
+      [TypeConge.CONGE_MALADIE]: 'maladie',
       [TypeConge.HEURE_DITE]: 'heure',
       [TypeConge.RECUPERATION]: 'recup'
     };

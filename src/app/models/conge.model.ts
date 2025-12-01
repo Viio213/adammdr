@@ -1,12 +1,14 @@
 // Types of leave/absence
 export enum TypeConge {
   CONGE_ANNUEL = 'CONGE_ANNUEL',
+  CONGE_MALADIE = 'CONGE_MALADIE',
   HEURE_DITE = 'HEURE_DITE', // Boni pointage
   RECUPERATION = 'RECUPERATION'
 }
 
 export const TYPE_CONGE_LABELS: { [key in TypeConge]: string } = {
   [TypeConge.CONGE_ANNUEL]: 'Congé annuel',
+  [TypeConge.CONGE_MALADIE]: 'Congé maladie',
   [TypeConge.HEURE_DITE]: 'Heure-dite / Boni pointage',
   [TypeConge.RECUPERATION]: 'Heures de récupération'
 };
