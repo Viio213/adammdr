@@ -56,11 +56,6 @@ import { AuthService } from '../../services/auth.service';
             <span *ngIf="isLoading">Connexion...</span>
           </button>
         </form>
-
-        <div class="login-footer">
-          <p>Première connexion ?</p>
-          <small>Identifiant: <strong>admin</strong> | Mot de passe: <strong>admin123</strong></small>
-        </div>
       </div>
 
       <div class="login-credit">
