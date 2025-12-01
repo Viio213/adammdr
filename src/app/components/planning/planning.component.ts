@@ -136,9 +136,9 @@ export interface ConflitGroupe {
                       <td class="td-binomes">
                         <div class="binome-cell">
                           <span 
-                            *ngIf="hasGroupeConflits(groupe, jourPlanning, 'MATIN')"
+                            *ngIf="hasGroupeConflitsMatin(groupe, jourPlanning)"
                             class="conflict-indicator"
-                            [title]="getGroupeConflitsTooltip(groupe, jourPlanning, 'MATIN')">
+                            [title]="getGroupeConflitsTooltipMatin(groupe, jourPlanning)">
                             ⚠️
                           </span>
                           <div class="binome-names">{{ getGroupeNoms(groupe) }}</div>
@@ -286,9 +286,9 @@ export interface ConflitGroupe {
                       <td class="td-binomes">
                         <div class="binome-cell">
                           <span 
-                            *ngIf="hasGroupeConflits(groupe, jourPlanning, 'APRES_MIDI')"
+                            *ngIf="hasGroupeConflitsApresMidi(groupe, jourPlanning)"
                             class="conflict-indicator"
-                            [title]="getGroupeConflitsTooltip(groupe, jourPlanning, 'APRES_MIDI')">
+                            [title]="getGroupeConflitsTooltipApresMidi(groupe, jourPlanning)">
                             ⚠️
                           </span>
                           <div class="binome-names">{{ getGroupeNoms(groupe) }}</div>
@@ -448,7 +448,7 @@ export interface ConflitGroupe {
           <p *ngIf="selectedAgents.length < 2" class="warning-text">
             Veuillez sélectionner au moins 2 agents
           </p>
-          <div class="conflict-legend" *ngIf="selectedAgents.some(a => hasAgentConflits(a.id))">
+          <div class="conflict-legend" *ngIf="hasAnySelectedAgentConflict()">
             <span class="legend-item">
               <span class="conflict-warning">⚠️</span>
               <span>Conflit détecté (survol pour détails)</span>
@@ -1518,6 +1518,23 @@ export class PlanningComponent {
     return this.getGroupeConflits(groupe, jourPlanning, demiJournee).length > 0;
   }
 
+  // Helper methods for template (to avoid passing enum directly)
+  hasGroupeConflitsMatin(groupe: Groupe, jourPlanning: PlanningJour): boolean {
+    return this.hasGroupeConflits(groupe, jourPlanning, DemiJournee.MATIN);
+  }
+
+  hasGroupeConflitsApresMidi(groupe: Groupe, jourPlanning: PlanningJour): boolean {
+    return this.hasGroupeConflits(groupe, jourPlanning, DemiJournee.APRES_MIDI);
+  }
+
+  getGroupeConflitsTooltipMatin(groupe: Groupe, jourPlanning: PlanningJour): string {
+    return this.getGroupeConflitsTooltip(groupe, jourPlanning, DemiJournee.MATIN);
+  }
+
+  getGroupeConflitsTooltipApresMidi(groupe: Groupe, jourPlanning: PlanningJour): string {
+    return this.getGroupeConflitsTooltip(groupe, jourPlanning, DemiJournee.APRES_MIDI);
+  }
+
   /**
    * Get tooltip text for group conflicts
    */
@@ -1539,6 +1556,13 @@ export class PlanningComponent {
   getAgentConflitsTooltip(agentId: string): string {
     const conflits = this.getAgentConflits(agentId);
     return conflits.map(c => c.description).join('\n');
+  }
+
+  /**
+   * Check if any selected agent has conflicts (for legend display)
+   */
+  hasAnySelectedAgentConflict(): boolean {
+    return this.selectedAgents.some((a: Agent) => this.hasAgentConflits(a.id));
   }
 }
 
