@@ -259,9 +259,11 @@ export class PlanningGeneratorService {
   }
 
   /**
-   * Select agents for a group with rebalancing based on exterior zone statistics
-   * For exterior zones (Z1, Z4): prioritize agents with LOWER exterior percentage
-   * This ensures fair rotation of exterior assignments
+   * Select agents for a group with rebalancing based on statistics
+   * Goals:
+   * - For exterior zones (Z1, Z4): prioritize agents with LOWER exterior percentage
+   * - Favor pairs that have worked together LESS often (toward 50% balance)
+   * - Avoid same pairs from morning in afternoon
    */
   private selectAgentsPourGroupe(
     agentsDisponibles: Agent[],
@@ -288,39 +290,81 @@ export class PlanningGeneratorService {
     // For exterior zones (Z1, Z4), sort by exterior percentage (lowest first for rebalancing)
     if (zone.isExterieur) {
       candidats = this.sortAgentsByExterieurPriority(candidats, exterieurStats);
-    } else {
-      // For interior zones, slightly randomize but still consider balance
-      this.shuffleArray(candidats);
     }
+
+    // Get pair statistics for rebalancing
+    const pairStats = this.statistiquesService.getStatistiquesBinomes();
 
     const selected: Agent[] = [];
 
-    for (const agent of candidats) {
-      if (selected.length >= taille) break;
+    // Select first agent (for exterior zones, use the one with lowest exterior %)
+    if (candidats.length > 0) {
+      selected.push(candidats[0]);
+    }
 
-      // Check if this agent would form a forbidden pair with any selected agent
+    // Select remaining agents based on pair frequency (favor less frequent pairs)
+    const remainingCandidats = candidats.slice(1);
+    
+    // Sort remaining candidates by pair score with already selected agents
+    // Lower score = better (less frequent pairing)
+    const scoredCandidats = remainingCandidats.map(agent => {
+      // Check if forbidden (same pair in morning)
       const formesPaireMatin = selected.some(a => 
         this.pairExisteDansPeriode(a, agent, entriesMemeJour, DemiJournee.MATIN)
       );
+      
+      if (formesPaireMatin) {
+        return { agent, score: 999999 }; // Very high score = avoid
+      }
 
-      if (!formesPaireMatin) {
-        // Check frequency in history
-        const tropFrequent = selected.some(a => 
-          this.pairTropFrequent(a, agent, historique)
-        );
+      // Calculate score based on pair frequency with selected agents
+      let totalPairScore = 0;
+      for (const selectedAgent of selected) {
+        const pairCount = this.getPairFrequency(agent, selectedAgent, pairStats);
+        totalPairScore += pairCount;
+      }
 
-        if (!tropFrequent || selected.length === 0) {
+      return { agent, score: totalPairScore };
+    });
+
+    // Sort by score (ascending - lowest pair frequency first)
+    scoredCandidats.sort((a, b) => a.score - b.score);
+
+    // Add agents with lowest scores
+    for (const { agent, score } of scoredCandidats) {
+      if (selected.length >= taille) break;
+      if (score < 999999) { // Skip forbidden pairs
+        selected.push(agent);
+      }
+    }
+
+    // If we couldn't find enough, take any remaining
+    if (selected.length < taille) {
+      for (const { agent } of scoredCandidats) {
+        if (selected.length >= taille) break;
+        if (!selected.includes(agent)) {
           selected.push(agent);
         }
       }
     }
 
-    // If we couldn't find enough without violations, just take the first available
+    // Final fallback: just take the first available
     if (selected.length < 2) {
       return candidats.slice(0, Math.min(taille, candidats.length));
     }
 
     return selected;
+  }
+
+  /**
+   * Get the frequency of a specific pair from statistics
+   */
+  private getPairFrequency(agent1: Agent, agent2: Agent, pairStats: { agent1: string; agent2: string; nombreOccurrences: number }[]): number {
+    const stat = pairStats.find(p => 
+      (p.agent1 === agent1.nom && p.agent2 === agent2.nom) ||
+      (p.agent1 === agent2.nom && p.agent2 === agent1.nom)
+    );
+    return stat?.nombreOccurrences ?? 0;
   }
 
   /**

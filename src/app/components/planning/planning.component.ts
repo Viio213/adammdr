@@ -6,9 +6,18 @@ import { DataService } from '../../services/data.service';
 import { ExcelExportService } from '../../services/excel-export.service';
 import { PdfExportService } from '../../services/pdf-export.service';
 import { AuthService } from '../../services/auth.service';
+import { StatistiquesService } from '../../services/statistiques.service';
 import { PlanningSemaine, PlanningJour, Groupe } from '../../models/planning.model';
 import { Agent, JourSemaine, DemiJournee, JOURS_TRAVAIL } from '../../models/agent.model';
+import { HistoriqueEntry } from '../../models/historique.model';
 import { ZONES } from '../../models/zone.model';
+
+// Types of conflicts that can occur
+export interface ConflitGroupe {
+  type: 'AGENT_OCCUPE' | 'MEME_BINOME_JOURNEE' | 'MEME_ZONE_JOURNEE' | 'PAIRE_FREQUENTE';
+  description: string;
+  agentsConcernes?: string[];
+}
 
 @Component({
   selector: 'app-planning',
@@ -126,6 +135,12 @@ import { ZONES } from '../../models/zone.model';
                       <!-- Binômes -->
                       <td class="td-binomes">
                         <div class="binome-cell">
+                          <span 
+                            *ngIf="hasGroupeConflits(groupe, jourPlanning, 'MATIN')"
+                            class="conflict-indicator"
+                            [title]="getGroupeConflitsTooltip(groupe, jourPlanning, 'MATIN')">
+                            ⚠️
+                          </span>
                           <div class="binome-names">{{ getGroupeNoms(groupe) }}</div>
                           <button 
                             *ngIf="canEdit && !planningActuel()!.isConfirmed"
@@ -270,6 +285,12 @@ import { ZONES } from '../../models/zone.model';
                       <!-- Binômes -->
                       <td class="td-binomes">
                         <div class="binome-cell">
+                          <span 
+                            *ngIf="hasGroupeConflits(groupe, jourPlanning, 'APRES_MIDI')"
+                            class="conflict-indicator"
+                            [title]="getGroupeConflitsTooltip(groupe, jourPlanning, 'APRES_MIDI')">
+                            ⚠️
+                          </span>
                           <div class="binome-names">{{ getGroupeNoms(groupe) }}</div>
                           <button 
                             *ngIf="canEdit && !planningActuel()!.isConfirmed"
@@ -408,20 +429,31 @@ import { ZONES } from '../../models/zone.model';
               *ngFor="let agent of agentsDisponibles()" 
               class="agent-checkbox"
               [class.selected]="isAgentSelected(agent.id)"
-              [class.disabled]="!isAgentAvailable(agent.id)">
+              [class.has-conflict]="hasAgentConflits(agent.id) && isAgentSelected(agent.id)">
               <input 
                 type="checkbox" 
                 [checked]="isAgentSelected(agent.id)"
-                [disabled]="!isAgentAvailable(agent.id) && !isAgentSelected(agent.id)"
                 (change)="toggleAgent(agent)"
               />
               <span class="agent-name">{{ agent.nom }}</span>
-              <span *ngIf="!isAgentAvailable(agent.id) && !isAgentSelected(agent.id)" class="agent-busy">(occupé)</span>
+              <span 
+                *ngIf="hasAgentConflits(agent.id)" 
+                class="conflict-warning"
+                [title]="getAgentConflitsTooltip(agent.id)">
+                ⚠️
+              </span>
+              <span *ngIf="!isAgentAvailable(agent.id)" class="agent-occupied">(dans autre groupe)</span>
             </label>
           </div>
           <p *ngIf="selectedAgents.length < 2" class="warning-text">
             Veuillez sélectionner au moins 2 agents
           </p>
+          <div class="conflict-legend" *ngIf="selectedAgents.some(a => hasAgentConflits(a.id))">
+            <span class="legend-item">
+              <span class="conflict-warning">⚠️</span>
+              <span>Conflit détecté (survol pour détails)</span>
+            </span>
+          </div>
         </div>
         <div class="modal-binome-footer">
           <button class="btn btn-secondary" (click)="fermerModalBinome()">Annuler</button>
@@ -674,6 +706,17 @@ import { ZONES } from '../../models/zone.model';
       color: #1e293b;
       line-height: 1.4;
     }
+
+    .conflict-indicator {
+      font-size: 14px;
+      cursor: help;
+      animation: pulse-warning 2s infinite;
+    }
+
+    @keyframes pulse-warning {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
     
     .btn-edit-binome {
       background: #e2e8f0;
@@ -904,6 +947,38 @@ import { ZONES } from '../../models/zone.model';
       font-style: italic;
     }
 
+    .agent-occupied {
+      font-size: 11px;
+      color: #64748b;
+      font-style: italic;
+    }
+
+    .agent-checkbox.has-conflict {
+      background: #fffbeb;
+      border-color: #f59e0b;
+    }
+
+    .conflict-warning {
+      font-size: 14px;
+      cursor: help;
+    }
+
+    .conflict-legend {
+      margin-top: 16px;
+      padding: 12px;
+      background: #fffbeb;
+      border-radius: 8px;
+      border: 1px solid #fde68a;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #92400e;
+    }
+
     .warning-text {
       margin: 12px 0 0 0;
       color: #f59e0b;
@@ -928,6 +1003,7 @@ export class PlanningComponent {
   private excelExport = inject(ExcelExportService);
   private pdfExport = inject(PdfExportService);
   private authService = inject(AuthService);
+  private statistiquesService = inject(StatistiquesService);
 
   planningActuel = signal<PlanningSemaine | null>(null);
   dateDebutSemaine = this.getLundiSemaine(new Date()).toISOString().split('T')[0];
@@ -945,7 +1021,7 @@ export class PlanningComponent {
 
   // Computed: agents disponibles pour la période
   agentsDisponibles = computed(() => {
-    return this.allAgents().filter(a => a.actif);
+    return this.allAgents().filter((a: Agent) => a.actif);
   });
 
   constructor() {
@@ -1128,7 +1204,7 @@ export class PlanningComponent {
     const planning = this.planningActuel();
     if (!planning) return true;
 
-    const jourPlanning = planning.jours.find(j => 
+    const jourPlanning = planning.jours.find((j: PlanningJour) => 
       new Date(j.date).toDateString() === new Date(this.dateGroupeEdition!).toDateString()
     );
     if (!jourPlanning) return true;
@@ -1140,7 +1216,7 @@ export class PlanningComponent {
     // Check if agent is in any other group (not the current one being edited)
     for (const groupe of entry.groupes) {
       if (groupe.id !== this.groupeEnEdition?.id) {
-        if (groupe.agents.some(a => a.id === agentId)) {
+        if (groupe.agents.some((a: Agent) => a.id === agentId)) {
           return false;
         }
       }
@@ -1169,6 +1245,300 @@ export class PlanningComponent {
     
     // Close modal
     this.fermerModalBinome();
+  }
+
+  // ============================================
+  // CONFLICT DETECTION FUNCTIONS
+  // ============================================
+
+  /**
+   * Get all conflicts for a specific group in a day
+   */
+  getGroupeConflits(groupe: Groupe, jourPlanning: PlanningJour, demiJournee: DemiJournee): ConflitGroupe[] {
+    const conflits: ConflitGroupe[] = [];
+    
+    // Check for agents in same zone morning and afternoon
+    const conflitZone = this.checkConflitMemeZoneJournee(groupe, jourPlanning, demiJournee);
+    if (conflitZone) conflits.push(conflitZone);
+    
+    // Check for same pair morning and afternoon
+    const conflitBinome = this.checkConflitMemeBinomeJournee(groupe, jourPlanning, demiJournee);
+    if (conflitBinome) conflits.push(conflitBinome);
+    
+    // Check for frequent pairs
+    const conflitFrequent = this.checkConflitPaireFrequente(groupe);
+    if (conflitFrequent) conflits.push(conflitFrequent);
+    
+    return conflits;
+  }
+
+  /**
+   * Check if an agent is in the same zone morning and afternoon
+   */
+  private checkConflitMemeZoneJournee(groupe: Groupe, jourPlanning: PlanningJour, demiJournee: DemiJournee): ConflitGroupe | null {
+    if (!groupe.zoneId) return null;
+    
+    const autreEntry = demiJournee === DemiJournee.MATIN ? jourPlanning.apresMidi : jourPlanning.matin;
+    const agentsConcernes: string[] = [];
+    
+    for (const agent of groupe.agents) {
+      for (const autreGroupe of autreEntry.groupes) {
+        if (autreGroupe.zoneId === groupe.zoneId && 
+            autreGroupe.agents.some(a => a.id === agent.id)) {
+          agentsConcernes.push(agent.nom);
+          break;
+        }
+      }
+    }
+    
+    if (agentsConcernes.length > 0) {
+      return {
+        type: 'MEME_ZONE_JOURNEE',
+        description: `${agentsConcernes.join(', ')} dans la même zone matin et après-midi`,
+        agentsConcernes
+      };
+    }
+    
+    return null;
+  }
+
+  /**
+   * Check if the same pair works together morning and afternoon
+   */
+  private checkConflitMemeBinomeJournee(groupe: Groupe, jourPlanning: PlanningJour, demiJournee: DemiJournee): ConflitGroupe | null {
+    const autreEntry = demiJournee === DemiJournee.MATIN ? jourPlanning.apresMidi : jourPlanning.matin;
+    
+    // Get all agent IDs in current group
+    const currentAgentIds = new Set(groupe.agents.map(a => a.id));
+    
+    for (const autreGroupe of autreEntry.groupes) {
+      const autreAgentIds = new Set(autreGroupe.agents.map(a => a.id));
+      
+      // Check if at least 2 agents are the same (forming a pair)
+      const agentsEnCommun = groupe.agents.filter(a => autreAgentIds.has(a.id));
+      
+      if (agentsEnCommun.length >= 2) {
+        return {
+          type: 'MEME_BINOME_JOURNEE',
+          description: `${agentsEnCommun.map(a => a.nom).join(' et ')} ensemble matin et après-midi`,
+          agentsConcernes: agentsEnCommun.map(a => a.nom)
+        };
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Check if a pair is too frequent (>=3 times in last 4 weeks)
+   */
+  private checkConflitPaireFrequente(groupe: Groupe): ConflitGroupe | null {
+    const historique = this.dataService.getHistorique();
+    const quatreSemainesAgo = new Date();
+    quatreSemainesAgo.setDate(quatreSemainesAgo.getDate() - 28);
+    
+    const historiqueRecent = historique.filter((h: HistoriqueEntry) => new Date(h.date) >= quatreSemainesAgo);
+    
+    // Check all pairs in the group
+    for (let i = 0; i < groupe.agents.length; i++) {
+      for (let j = i + 1; j < groupe.agents.length; j++) {
+        const agent1 = groupe.agents[i];
+        const agent2 = groupe.agents[j];
+        
+        const occurrences = historiqueRecent.filter((h: HistoriqueEntry) => {
+          const agentIds = h.agentIds || [];
+          return agentIds.includes(agent1.id) && agentIds.includes(agent2.id);
+        }).length;
+        
+        if (occurrences >= 3) {
+          return {
+            type: 'PAIRE_FREQUENTE',
+            description: `${agent1.nom} et ${agent2.nom} déjà ensemble ${occurrences}x ces 4 dernières semaines`,
+            agentsConcernes: [agent1.nom, agent2.nom]
+          };
+        }
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Get conflicts for an agent in the modal selection
+   */
+  getAgentConflits(agentId: string): ConflitGroupe[] {
+    const conflits: ConflitGroupe[] = [];
+    
+    if (!this.dateGroupeEdition || !this.periodeGroupeEdition || !this.groupeEnEdition) {
+      return conflits;
+    }
+    
+    const planning = this.planningActuel();
+    if (!planning) return conflits;
+    
+    const jourPlanning = planning.jours.find((j: PlanningJour) => 
+      new Date(j.date).toDateString() === new Date(this.dateGroupeEdition!).toDateString()
+    );
+    if (!jourPlanning) return conflits;
+    
+    const agent = this.allAgents().find((a: Agent) => a.id === agentId);
+    if (!agent) return conflits;
+    
+    // Check if agent is occupied (in another group same period)
+    const conflitOccupe = this.checkAgentOccupe(agentId, jourPlanning);
+    if (conflitOccupe) conflits.push(conflitOccupe);
+    
+    // Check if agent would be in same zone morning/afternoon
+    const conflitZone = this.checkAgentMemeZone(agent, jourPlanning);
+    if (conflitZone) conflits.push(conflitZone);
+    
+    // Check for same pair morning/afternoon with selected agents
+    const conflitMemePaire = this.checkAgentMemePairJournee(agent, jourPlanning);
+    if (conflitMemePaire) conflits.push(conflitMemePaire);
+    
+    // Check for frequent pairs with selected agents
+    const conflitFrequent = this.checkAgentPaireFrequente(agent);
+    if (conflitFrequent) conflits.push(conflitFrequent);
+    
+    return conflits;
+  }
+
+  /**
+   * Check if agent is already in another group for the same period
+   */
+  private checkAgentOccupe(agentId: string, jourPlanning: PlanningJour): ConflitGroupe | null {
+    const entry = this.periodeGroupeEdition === DemiJournee.MATIN 
+      ? jourPlanning.matin 
+      : jourPlanning.apresMidi;
+    
+    for (const groupe of entry.groupes) {
+      if (groupe.id !== this.groupeEnEdition?.id) {
+        if (groupe.agents.some(a => a.id === agentId)) {
+          const autresBinomes = groupe.agents.map(a => a.nom).join(', ');
+          return {
+            type: 'AGENT_OCCUPE',
+            description: `Déjà dans le groupe: ${autresBinomes}`,
+            agentsConcernes: [agentId]
+          };
+        }
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Check if agent would be in same zone morning and afternoon
+   */
+  private checkAgentMemeZone(agent: Agent, jourPlanning: PlanningJour): ConflitGroupe | null {
+    if (!this.groupeEnEdition?.zoneId) return null;
+    
+    const autreEntry = this.periodeGroupeEdition === DemiJournee.MATIN 
+      ? jourPlanning.apresMidi 
+      : jourPlanning.matin;
+    
+    for (const groupe of autreEntry.groupes) {
+      if (groupe.zoneId === this.groupeEnEdition.zoneId && 
+          groupe.agents.some(a => a.id === agent.id)) {
+        return {
+          type: 'MEME_ZONE_JOURNEE',
+          description: `Sera dans la même zone matin et après-midi`,
+          agentsConcernes: [agent.nom]
+        };
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Check if agent would form the same pair morning and afternoon
+   */
+  private checkAgentMemePairJournee(agent: Agent, jourPlanning: PlanningJour): ConflitGroupe | null {
+    const autreEntry = this.periodeGroupeEdition === DemiJournee.MATIN 
+      ? jourPlanning.apresMidi 
+      : jourPlanning.matin;
+    
+    // Check other selected agents in modal
+    for (const autreAgent of this.selectedAgents) {
+      if (autreAgent.id === agent.id) continue;
+      
+      // Check if this pair exists in the other period
+      for (const groupe of autreEntry.groupes) {
+        const hasAgent = groupe.agents.some(a => a.id === agent.id);
+        const hasAutre = groupe.agents.some(a => a.id === autreAgent.id);
+        
+        if (hasAgent && hasAutre) {
+          return {
+            type: 'MEME_BINOME_JOURNEE',
+            description: `${agent.nom} et ${autreAgent.nom} déjà ensemble dans l'autre période`,
+            agentsConcernes: [agent.nom, autreAgent.nom]
+          };
+        }
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Check if agent would form a frequent pair with selected agents
+   */
+  private checkAgentPaireFrequente(agent: Agent): ConflitGroupe | null {
+    const historique = this.dataService.getHistorique();
+    const quatreSemainesAgo = new Date();
+    quatreSemainesAgo.setDate(quatreSemainesAgo.getDate() - 28);
+    
+    const historiqueRecent = historique.filter((h: HistoriqueEntry) => new Date(h.date) >= quatreSemainesAgo);
+    
+    for (const autreAgent of this.selectedAgents) {
+      if (autreAgent.id === agent.id) continue;
+      
+      const occurrences = historiqueRecent.filter((h: HistoriqueEntry) => {
+        const agentIds = h.agentIds || [];
+        return agentIds.includes(agent.id) && agentIds.includes(autreAgent.id);
+      }).length;
+      
+      if (occurrences >= 3) {
+        return {
+          type: 'PAIRE_FREQUENTE',
+          description: `${agent.nom} et ${autreAgent.nom} déjà ensemble ${occurrences}x récemment`,
+          agentsConcernes: [agent.nom, autreAgent.nom]
+        };
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Check if a group has any conflicts (for displaying warning in table)
+   */
+  hasGroupeConflits(groupe: Groupe, jourPlanning: PlanningJour, demiJournee: DemiJournee): boolean {
+    return this.getGroupeConflits(groupe, jourPlanning, demiJournee).length > 0;
+  }
+
+  /**
+   * Get tooltip text for group conflicts
+   */
+  getGroupeConflitsTooltip(groupe: Groupe, jourPlanning: PlanningJour, demiJournee: DemiJournee): string {
+    const conflits = this.getGroupeConflits(groupe, jourPlanning, demiJournee);
+    return conflits.map(c => c.description).join('\n');
+  }
+
+  /**
+   * Check if agent has conflicts in modal
+   */
+  hasAgentConflits(agentId: string): boolean {
+    return this.getAgentConflits(agentId).length > 0;
+  }
+
+  /**
+   * Get tooltip for agent conflicts in modal
+   */
+  getAgentConflitsTooltip(agentId: string): string {
+    const conflits = this.getAgentConflits(agentId);
+    return conflits.map(c => c.description).join('\n');
   }
 }
 
