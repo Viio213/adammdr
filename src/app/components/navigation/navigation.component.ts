@@ -18,6 +18,7 @@ import { ROLE_LABELS } from '../../models/user.model';
           <li><a routerLink="/planning" routerLinkActive="active">Planning</a></li>
           <li *ngIf="canAccessStaff()"><a routerLink="/staff" routerLinkActive="active">Disponibilités</a></li>
           <li><a routerLink="/conges" routerLinkActive="active">Congés</a></li>
+          <li *ngIf="canViewPlanningConges()"><a routerLink="/planning-conges" routerLinkActive="active">Planning Congés</a></li>
           <li *ngIf="canAccessHistorique()"><a routerLink="/historique" routerLinkActive="active">Historique</a></li>
           <li *ngIf="canAccessStatistiques()"><a routerLink="/statistiques" routerLinkActive="active">Statistiques</a></li>
           <li *ngIf="canAccessParametres()"><a routerLink="/parametres" routerLinkActive="active">Paramètres</a></li>
@@ -190,6 +191,10 @@ export class NavigationComponent {
 
   canManageUsers(): boolean {
     return this.authService.hasPermission('canManageUsers');
+  }
+
+  canViewPlanningConges(): boolean {
+    return this.authService.hasPermission('canViewStaff');
   }
 
   getUserName(): string {

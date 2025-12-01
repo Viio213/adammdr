@@ -4,7 +4,7 @@ import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } 
 import { DataService } from '../../services/data.service';
 import { AuthService } from '../../services/auth.service';
 import { Conge, TypeConge, TYPE_CONGE_LABELS, StatutConge, STATUT_CONGE_LABELS } from '../../models/conge.model';
-import { Agent } from '../../models/agent.model';
+import { Agent, JourSemaine, DemiJournee } from '../../models/agent.model';
 
 @Component({
   selector: 'app-conges',
@@ -187,6 +187,19 @@ import { Agent } from '../../models/agent.model';
           <div class="form-group">
             <label class="form-label">Commentaire</label>
             <textarea formControlName="commentaire" class="form-control" rows="2"></textarea>
+          </div>
+
+          <!-- Warning if less than 4 agents available -->
+          <div class="alert-warning-form" *ngIf="afficherAlerteAgents()">
+            <div class="alert-icon">⚠️</div>
+            <div class="alert-content">
+              <strong>Attention :</strong> Cette demande de congé entraînera moins de 4 agents disponibles certains jours :
+              <ul class="alert-days">
+                <li *ngFor="let jour of joursAlerte()">
+                  {{ formatDate(jour.date) }} : {{ jour.nombreAgents }} agent(s) disponible(s)
+                </li>
+              </ul>
+            </div>
           </div>
 
           <div class="modal-actions">
@@ -444,6 +457,44 @@ import { Agent } from '../../models/agent.model';
       margin-top: 24px;
       padding-top: 24px;
       border-top: 2px solid #e2e8f0;
+    }
+
+    .alert-warning-form {
+      margin: 16px 0;
+      padding: 14px 16px;
+      background: #fef3c7;
+      border: 1px solid #fbbf24;
+      border-radius: 8px;
+      border-left: 4px solid #f59e0b;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .alert-icon {
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .alert-content {
+      flex: 1;
+      font-size: 13px;
+      color: #92400e;
+    }
+
+    .alert-content strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+
+    .alert-days {
+      margin: 8px 0 0 0;
+      padding-left: 20px;
+    }
+
+    .alert-days li {
+      margin-bottom: 4px;
     }
   `]
 })
@@ -714,5 +765,128 @@ export class CongesComponent {
 
   private generateId(): string {
     return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+  }
+
+  // Check if the leave request would result in less than 4 agents available
+  afficherAlerteAgents(): boolean {
+    const formValue = this.congeForm.value;
+    if (!formValue.dateDebut || !formValue.dateFin || !formValue.agentId) {
+      return false;
+    }
+
+    const joursAlerte = this.calculerJoursAlerte(
+      new Date(formValue.dateDebut),
+      new Date(formValue.dateFin),
+      formValue.agentId,
+      formValue.demiJournee || 'JOURNEE'
+    );
+
+    return joursAlerte.length > 0;
+  }
+
+  joursAlerte(): { date: Date; nombreAgents: number }[] {
+    const formValue = this.congeForm.value;
+    if (!formValue.dateDebut || !formValue.dateFin || !formValue.agentId) {
+      return [];
+    }
+
+    return this.calculerJoursAlerte(
+      new Date(formValue.dateDebut),
+      new Date(formValue.dateFin),
+      formValue.agentId,
+      formValue.demiJournee || 'JOURNEE'
+    );
+  }
+
+  private calculerJoursAlerte(
+    dateDebut: Date,
+    dateFin: Date,
+    agentId: string,
+    demiJournee: string
+  ): { date: Date; nombreAgents: number }[] {
+    const joursAlerte: { date: Date; nombreAgents: number }[] = [];
+    const agents = this.agents();
+    const conges = this.conges().filter(c => c.statut === StatutConge.VALIDE); // Only validated leaves
+    const agent = agents.find(a => a.id === agentId);
+    
+    if (!agent) return joursAlerte;
+
+    // Iterate through each day in the leave period
+    const currentDate = new Date(dateDebut);
+    while (currentDate <= dateFin) {
+      // Skip weekends
+      const dayOfWeek = currentDate.getDay();
+      if (dayOfWeek === 0 || dayOfWeek === 6) {
+        currentDate.setDate(currentDate.getDate() + 1);
+        continue;
+      }
+
+      const jourSemaine = this.getJourSemaine(currentDate);
+      let nombreAgentsDisponibles = 0;
+
+      // Count available agents for this day
+      for (const a of agents) {
+        if (!a.actif) continue;
+        if (a.id === agentId) continue; // Exclude the agent requesting leave
+
+        // Check if agent is available on this day
+        const disponibiliteMatin = a.disponibilites.find(
+          d => d.jour === jourSemaine && d.demiJournee === DemiJournee.MATIN && d.disponible
+        );
+        const disponibiliteApresMidi = a.disponibilites.find(
+          d => d.jour === jourSemaine && d.demiJournee === DemiJournee.APRES_MIDI && d.disponible
+        );
+
+        if (!disponibiliteMatin && !disponibiliteApresMidi) continue;
+
+        // Check if agent is on leave
+        const conge = conges.find(c => {
+          const debut = new Date(c.dateDebut);
+          debut.setHours(0, 0, 0, 0);
+          const fin = new Date(c.dateFin);
+          fin.setHours(23, 59, 59, 999);
+          const checkDate = new Date(currentDate);
+          checkDate.setHours(12, 0, 0, 0);
+
+          if (checkDate < debut || checkDate > fin) return false;
+          if (c.agentId !== a.id) return false;
+          
+          if (c.demiJournee === 'JOURNEE') return true;
+          if (c.demiJournee === 'MATIN' && disponibiliteMatin) return true;
+          if (c.demiJournee === 'APRES_MIDI' && disponibiliteApresMidi) return true;
+          
+          return false;
+        });
+
+        if (!conge) {
+          nombreAgentsDisponibles++;
+        }
+      }
+
+      // If less than 4 agents available, add to alert list
+      if (nombreAgentsDisponibles < 4) {
+        joursAlerte.push({
+          date: new Date(currentDate),
+          nombreAgents: nombreAgentsDisponibles
+        });
+      }
+
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    return joursAlerte;
+  }
+
+  private getJourSemaine(date: Date): JourSemaine {
+    const jours = [
+      JourSemaine.DIMANCHE,
+      JourSemaine.LUNDI,
+      JourSemaine.MARDI,
+      JourSemaine.MERCREDI,
+      JourSemaine.JEUDI,
+      JourSemaine.VENDREDI,
+      JourSemaine.SAMEDI
+    ];
+    return jours[date.getDay()];
   }
 }
