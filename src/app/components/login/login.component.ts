@@ -157,21 +157,22 @@ import { AuthService } from '../../services/auth.service';
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: linear-gradient(135deg, #1a3a0d 0%, #2d5016 50%, #3d6b1e 100%);
+      background: #ffffff;
       padding: 20px;
     }
 
     .login-card {
       background: white;
       border-radius: 16px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      box-shadow: 0 8px 40px rgba(74, 111, 165, 0.15);
       width: 100%;
       max-width: 420px;
       overflow: hidden;
+      border: 1px solid #e2e8f0;
     }
 
     .login-header {
-      background: linear-gradient(135deg, #2d5016 0%, #3d6b1e 100%);
+      background: linear-gradient(135deg, #4a6fa5 0%, #5b9bd5 100%);
       padding: 40px 30px;
       text-align: center;
       color: white;
@@ -211,7 +212,7 @@ import { AuthService } from '../../services/auth.service';
       display: block;
       margin-bottom: 8px;
       font-weight: 600;
-      color: #1e293b;
+      color: #334155;
       font-size: 14px;
     }
 
@@ -227,9 +228,9 @@ import { AuthService } from '../../services/auth.service';
 
     .form-control:focus {
       outline: none;
-      border-color: #2d5016;
+      border-color: #4a6fa5;
       background: white;
-      box-shadow: 0 0 0 4px rgba(45, 80, 22, 0.1);
+      box-shadow: 0 0 0 4px rgba(74, 111, 165, 0.1);
     }
 
     .form-control::placeholder {
@@ -253,7 +254,7 @@ import { AuthService } from '../../services/auth.service';
       font-size: 16px;
       font-weight: 600;
       border-radius: 10px;
-      background: linear-gradient(135deg, #2d5016 0%, #3d6b1e 100%);
+      background: linear-gradient(135deg, #4a6fa5 0%, #5b9bd5 100%);
       border: none;
       color: white;
       cursor: pointer;
@@ -262,7 +263,7 @@ import { AuthService } from '../../services/auth.service';
 
     .btn-login:hover:not(:disabled) {
       transform: translateY(-2px);
-      box-shadow: 0 8px 20px rgba(45, 80, 22, 0.3);
+      box-shadow: 0 8px 20px rgba(74, 111, 165, 0.3);
     }
 
     .btn-login:disabled {
@@ -294,12 +295,12 @@ import { AuthService } from '../../services/auth.service';
 
     .login-credit {
       margin-top: 24px;
-      color: rgba(255, 255, 255, 0.7);
+      color: #64748b;
       font-size: 13px;
     }
 
     .login-credit strong {
-      color: #c5e1a5;
+      color: #4a6fa5;
     }
 
     /* Modal Terms */
@@ -309,7 +310,7 @@ import { AuthService } from '../../services/auth.service';
       left: 0;
       right: 0;
       bottom: 0;
-      background: rgba(15, 23, 42, 0.8);
+      background: rgba(15, 23, 42, 0.6);
       backdrop-filter: blur(8px);
       display: flex;
       align-items: center;
@@ -331,7 +332,7 @@ import { AuthService } from '../../services/auth.service';
 
     .modal-terms-header {
       padding: 24px 30px;
-      background: linear-gradient(135deg, #2d5016 0%, #3d6b1e 100%);
+      background: linear-gradient(135deg, #4a6fa5 0%, #5b9bd5 100%);
       border-radius: 16px 16px 0 0;
     }
 
@@ -356,7 +357,7 @@ import { AuthService } from '../../services/auth.service';
       padding: 16px;
       background: #f8fafc;
       border-radius: 10px;
-      border-left: 4px solid #2d5016;
+      border-left: 4px solid #4a6fa5;
     }
 
     .terms-section {
@@ -385,19 +386,19 @@ import { AuthService } from '../../services/auth.service';
     .terms-contact {
       margin-top: 24px;
       padding: 16px;
-      background: #ecfdf5;
+      background: #e8f1fb;
       border-radius: 10px;
-      border: 1px solid #a7f3d0;
+      border: 1px solid #b8d0ed;
     }
 
     .terms-contact p {
       margin: 0;
       font-size: 14px;
-      color: #065f46;
+      color: #3d5a87;
     }
 
     .terms-contact a {
-      color: #047857;
+      color: #4a6fa5;
       text-decoration: none;
       font-weight: 600;
     }
@@ -428,7 +429,7 @@ import { AuthService } from '../../services/auth.service';
     .checkbox-accept input {
       width: 20px;
       height: 20px;
-      accent-color: #2d5016;
+      accent-color: #4a6fa5;
       cursor: pointer;
     }
 
@@ -437,7 +438,7 @@ import { AuthService } from '../../services/auth.service';
       font-size: 15px;
       font-weight: 600;
       border-radius: 10px;
-      background: linear-gradient(135deg, #2d5016 0%, #3d6b1e 100%);
+      background: linear-gradient(135deg, #4a6fa5 0%, #5b9bd5 100%);
       border: none;
       color: white;
       cursor: pointer;
@@ -446,7 +447,7 @@ import { AuthService } from '../../services/auth.service';
 
     .btn-accept:hover:not(:disabled) {
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(45, 80, 22, 0.3);
+      box-shadow: 0 4px 12px rgba(74, 111, 165, 0.3);
     }
 
     .btn-accept:disabled {

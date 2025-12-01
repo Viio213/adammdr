@@ -492,11 +492,11 @@ import { ZONES } from '../../models/zone.model';
     }
     
     .btn-primary {
-      background: linear-gradient(135deg, #2d5016 0%, #3d6b1e 100%);
+      background: linear-gradient(135deg, #4a6fa5 0%, #5b9bd5 100%);
       color: #fff;
     }
     
-    .btn-primary:hover { background: #1f3a0f; }
+    .btn-primary:hover { background: #3d5a87; }
     
     .btn-success {
       background: linear-gradient(135deg, #059669 0%, #10b981 100%);
@@ -559,7 +559,7 @@ import { ZONES } from '../../models/zone.model';
     
     .table-wrapper {
       overflow-x: auto;
-      border: 2px solid #2d5016;
+      border: 2px solid #4a6fa5;
       border-radius: 10px;
     }
     
@@ -597,13 +597,13 @@ import { ZONES } from '../../models/zone.model';
     .th-commentaires { min-width: 120px; }
     
     .td-jour {
-      background: linear-gradient(135deg, #8bc34a 0%, #9ccc65 100%);
-      color: #1b3409;
+      background: linear-gradient(135deg, #7da0d4 0%, #9db8e3 100%);
+      color: #1e3a5f;
       font-weight: 700;
       text-align: center;
       vertical-align: top;
       padding: 12px 8px;
-      border-right: 2px solid #7cb342;
+      border-right: 2px solid #5b9bd5;
     }
     
     .jour-content {
@@ -624,18 +624,18 @@ import { ZONES } from '../../models/zone.model';
     }
     
     .td-periode {
-      background: #c5e1a5;
-      color: #33691e;
+      background: #b8d0ed;
+      color: #3d5a87;
       font-weight: 600;
       padding: 10px 8px;
       text-align: center;
       font-size: 12px;
-      border-right: 1px solid #aed581;
-      border-bottom: 1px solid #aed581;
+      border-right: 1px solid #9db8e3;
+      border-bottom: 1px solid #9db8e3;
     }
     
-    .td-matin { background: #dcedc8; }
-    .td-aprem { background: #c5e1a5; }
+    .td-matin { background: #e8f1fb; }
+    .td-aprem { background: #d4e4f7; }
     .td-empty-periode { background: #f5f5f5; border-right: 1px solid #e0e0e0; }
     
     .row-groupe td {
@@ -726,7 +726,7 @@ import { ZONES } from '../../models/zone.model';
     .checkbox-vehicule input {
       width: 20px;
       height: 20px;
-      accent-color: #2d5016;
+      accent-color: #4a6fa5;
       cursor: pointer;
     }
     

@@ -37,7 +37,7 @@ import { ROLE_LABELS } from '../../models/user.model';
   `,
   styles: [`
     .navbar {
-      background: #2d5016;
+      background: #4a6fa5;
       padding: 0;
       position: sticky;
       top: 0;
@@ -74,7 +74,7 @@ import { ROLE_LABELS } from '../../models/user.model';
     
     .nav-links a {
       text-decoration: none;
-      color: rgba(255,255,255,0.8);
+      color: rgba(255,255,255,0.85);
       font-weight: 500;
       padding: 10px 18px;
       border-radius: 6px;
@@ -84,12 +84,12 @@ import { ROLE_LABELS } from '../../models/user.model';
     
     .nav-links a:hover {
       color: #fff;
-      background: rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.15);
     }
     
     .nav-links a.active {
-      color: #2d5016;
-      background: #c5e1a5;
+      color: #3d5a87;
+      background: #e8f1fb;
       font-weight: 600;
     }
     

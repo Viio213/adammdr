@@ -355,10 +355,10 @@ export class PdfExportService {
             text-align: center;
             margin-bottom: 30px;
             padding-bottom: 20px;
-            border-bottom: 2px solid #2d5016;
+            border-bottom: 2px solid #4a6fa5;
           }
           .header h1 {
-            color: #2d5016;
+            color: #4a6fa5;
             font-size: 24px;
             margin-bottom: 8px;
           }
@@ -375,7 +375,7 @@ export class PdfExportService {
             margin-top: 8px;
           }
           h2 {
-            color: #2d5016;
+            color: #4a6fa5;
             font-size: 16px;
             margin: 20px 0 10px 0;
             padding-bottom: 5px;
@@ -392,7 +392,7 @@ export class PdfExportService {
             border: 1px solid #ddd;
           }
           th {
-            background: #2d5016;
+            background: #4a6fa5;
             color: white;
             font-weight: 600;
             font-size: 11px;
@@ -402,8 +402,8 @@ export class PdfExportService {
             background: #f9f9f9;
           }
           .jour-cell {
-            background: #8bc34a;
-            color: #1b3409;
+            background: #7da0d4;
+            color: #1e3a5f;
             font-weight: 700;
             vertical-align: top;
           }
@@ -412,12 +412,12 @@ export class PdfExportService {
             vertical-align: middle;
           }
           .periode-cell.matin {
-            background: #dcedc8;
-            color: #33691e;
+            background: #e8f1fb;
+            color: #3d5a87;
           }
           .periode-cell.aprem {
-            background: #c5e1a5;
-            color: #33691e;
+            background: #d4e4f7;
+            color: #3d5a87;
           }
           .footer {
             margin-top: 40px;

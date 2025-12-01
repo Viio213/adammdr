@@ -323,11 +323,11 @@ import {
     }
 
     .btn-primary {
-      background: linear-gradient(135deg, #2d5016 0%, #3d6b1e 100%);
+      background: linear-gradient(135deg, #4a6fa5 0%, #5b9bd5 100%);
       color: #fff;
     }
 
-    .btn-primary:hover { background: #1f3a0f; }
+    .btn-primary:hover { background: #3d5a87; }
 
     .btn-info {
       background: #0ea5e9;

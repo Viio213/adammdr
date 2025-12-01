@@ -35,7 +35,7 @@ import { NavigationComponent } from './components/navigation/navigation.componen
     }
 
     .app-footer {
-      background: linear-gradient(135deg, #1e3a0f 0%, #2d5016 100%);
+      background: linear-gradient(135deg, #3d5a87 0%, #4a6fa5 100%);
       color: rgba(255, 255, 255, 0.9);
       padding: 16px 24px;
       text-align: center;
@@ -55,7 +55,7 @@ import { NavigationComponent } from './components/navigation/navigation.componen
     }
 
     .footer-text strong {
-      color: #c5e1a5;
+      color: #b8d0ed;
       font-weight: 600;
     }
 
