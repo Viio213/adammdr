@@ -49,9 +49,14 @@ import { ExcelExportService } from '../../services/excel-export.service';
         <div class="settings-section">
           <h3>Réinitialisation</h3>
           <p>Supprimez toutes les données stockées localement.</p>
-          <button class="btn btn-danger" (click)="reinitialiserDonnees()">
-            Réinitialiser toutes les données
-          </button>
+          <div class="reset-buttons">
+            <button class="btn btn-warning" (click)="resetDatabase()">
+              Reset DB (Historique, Stats, Congés)
+            </button>
+            <button class="btn btn-danger" (click)="reinitialiserDonnees()">
+              Réinitialiser toutes les données
+            </button>
+          </div>
         </div>
 
         <div class="settings-section">
@@ -161,6 +166,28 @@ import { ExcelExportService } from '../../services/excel-export.service';
       gap: 12px;
       flex-wrap: wrap;
     }
+
+    .reset-buttons {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn-warning {
+      background: #f59e0b;
+      color: #fff;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-warning:hover {
+      background: #d97706;
+    }
   `]
 })
 export class ParametresComponent {
@@ -227,6 +254,27 @@ export class ParametresComponent {
       }
     };
     reader.readAsText(file);
+  }
+
+  async resetDatabase(): Promise<void> {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer l\'historique, les statistiques et les congés ? Cette action est irréversible !')) {
+      return;
+    }
+
+    if (!confirm('Dernière confirmation : supprimer l\'historique, les statistiques et les congés ?')) {
+      return;
+    }
+
+    const result = await this.dataService.resetDatabase();
+    
+    if (result.success) {
+      alert(result.message);
+      this.chargerStatistiques();
+      // Reload page to refresh all components
+      window.location.reload();
+    } else {
+      alert(result.message);
+    }
   }
 
   reinitialiserDonnees(): void {

@@ -503,4 +503,33 @@ export class DataService {
       return false;
     }
   }
+
+  // ============================================
+  // RESET DATABASE
+  // ============================================
+  /**
+   * Reset database: delete historique, conges (stats are calculated from historique)
+   */
+  async resetDatabase(): Promise<{ success: boolean; message: string }> {
+    try {
+      // Delete all historique entries
+      const historique = this.historique();
+      for (const entry of historique) {
+        await this.supabase.deleteHistorique(entry.id);
+      }
+      this.historique.set([]);
+
+      // Delete all conges
+      const conges = this.conges();
+      for (const conge of conges) {
+        await this.supabase.deleteConge(conge.id);
+      }
+      this.conges.set([]);
+
+      return { success: true, message: 'Base de données réinitialisée avec succès' };
+    } catch (error) {
+      console.error('Error resetting database:', error);
+      return { success: false, message: 'Erreur lors de la réinitialisation' };
+    }
+  }
 }

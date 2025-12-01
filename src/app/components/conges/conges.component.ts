@@ -20,10 +20,10 @@ import { Agent, JourSemaine, DemiJournee } from '../../models/agent.model';
           </button>
         </div>
 
-        <!-- Filter for admin/chef -->
-        <div class="filters" *ngIf="canViewAllConges">
-          <label>Filtrer par agent :</label>
-          <select [(ngModel)]="filtreAgent" (change)="appliquerFiltre()" class="form-control filter-select">
+        <!-- Filters -->
+        <div class="filters">
+          <label *ngIf="canViewAllConges">Filtrer par agent :</label>
+          <select *ngIf="canViewAllConges" [(ngModel)]="filtreAgent" (change)="appliquerFiltre()" class="form-control filter-select">
             <option value="">Tous les agents</option>
             <option *ngFor="let agent of agents()" [value]="agent.id">{{ agent.nom }}</option>
           </select>
@@ -33,6 +33,12 @@ import { Agent, JourSemaine, DemiJournee } from '../../models/agent.model';
             <option [value]="StatutConge.EN_ATTENTE">En traitement</option>
             <option [value]="StatutConge.VALIDE">Validé</option>
             <option [value]="StatutConge.REFUSE">Refusé</option>
+          </select>
+          <label>Période :</label>
+          <select [(ngModel)]="filtrePeriode" (change)="appliquerFiltre()" class="form-control filter-select">
+            <option value="">Tous</option>
+            <option value="passes">Congés passés</option>
+            <option value="avenir">Congés à venir</option>
           </select>
         </div>
 
@@ -517,6 +523,7 @@ export class CongesComponent {
   congeEnEdition: Conge | null = null;
   filtreAgent = '';
   filtreStatut = '';
+  filtrePeriode = '';
 
   readonly TypeConge = TypeConge;
   readonly StatutConge = StatutConge;
@@ -601,6 +608,27 @@ export class CongesComponent {
     
     if (this.filtreStatut) {
       filtered = filtered.filter(c => c.statut === this.filtreStatut);
+    }
+    
+    if (this.filtrePeriode) {
+      const aujourdhui = new Date();
+      aujourdhui.setHours(0, 0, 0, 0);
+      
+      if (this.filtrePeriode === 'passes') {
+        // Congés passés : dateFin < aujourd'hui
+        filtered = filtered.filter(c => {
+          const dateFin = new Date(c.dateFin);
+          dateFin.setHours(0, 0, 0, 0);
+          return dateFin < aujourdhui;
+        });
+      } else if (this.filtrePeriode === 'avenir') {
+        // Congés à venir : dateDebut >= aujourd'hui
+        filtered = filtered.filter(c => {
+          const dateDebut = new Date(c.dateDebut);
+          dateDebut.setHours(0, 0, 0, 0);
+          return dateDebut >= aujourdhui;
+        });
+      }
     }
     
     this.congesFiltres.set(filtered);
