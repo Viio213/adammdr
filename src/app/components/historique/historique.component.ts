@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, effect } from '@angular/core';
+import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DataService } from '../../services/data.service';
@@ -246,9 +246,7 @@ export class HistoriqueComponent {
 
   constructor() {
     // Initialize filtered list from computed historique
-    effect(() => {
-      this.historiqueFiltre.set([...this.historique()]);
-    });
+    this.historiqueFiltre.set([...this.historique()]);
   }
 
   appliquerFiltres(): void {
@@ -274,7 +272,17 @@ export class HistoriqueComponent {
   reinitialiserFiltres(): void {
     this.dateDebut = '';
     this.dateFin = '';
+    // Update filtered list when resetting filters
     this.historiqueFiltre.set([...this.historique()]);
+  }
+
+  // Update filtered list when historique changes
+  private updateFiltre(): void {
+    if (!this.dateDebut && !this.dateFin) {
+      this.historiqueFiltre.set([...this.historique()]);
+    } else {
+      this.appliquerFiltres();
+    }
   }
 
   async sauvegarderEntry(entry: HistoriqueEntry): Promise<void> {

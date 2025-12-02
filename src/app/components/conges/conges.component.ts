@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, effect } from '@angular/core';
+import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { DataService } from '../../services/data.service';
@@ -23,19 +23,19 @@ import { Agent, JourSemaine, DemiJournee } from '../../models/agent.model';
         <!-- Filters -->
         <div class="filters">
           <label *ngIf="canViewAllConges">Filtrer par agent :</label>
-          <select *ngIf="canViewAllConges" [(ngModel)]="filtreAgent" (change)="appliquerFiltre()" class="form-control filter-select">
+          <select *ngIf="canViewAllConges" [ngModel]="filtreAgent()" (ngModelChange)="filtreAgent.set($event)" class="form-control filter-select">
             <option value="">Tous les agents</option>
             <option *ngFor="let agent of agents()" [value]="agent.id">{{ agent.nom }}</option>
           </select>
           <label>Statut :</label>
-          <select [(ngModel)]="filtreStatut" (change)="appliquerFiltre()" class="form-control filter-select">
+          <select [ngModel]="filtreStatut()" (ngModelChange)="filtreStatut.set($event)" class="form-control filter-select">
             <option value="">Tous</option>
             <option [value]="StatutConge.EN_ATTENTE">En traitement</option>
             <option [value]="StatutConge.VALIDE">Validé</option>
             <option [value]="StatutConge.REFUSE">Refusé</option>
           </select>
           <label>Période :</label>
-          <select [(ngModel)]="filtrePeriode" (change)="appliquerFiltre()" class="form-control filter-select">
+          <select [ngModel]="filtrePeriode()" (ngModelChange)="filtrePeriode.set($event)" class="form-control filter-select">
             <option value="">Tous</option>
             <option value="passes">Congés passés</option>
             <option value="avenir">Congés à venir</option>
@@ -531,13 +531,46 @@ export class CongesComponent {
     return allConges;
   });
   
-  congesFiltres = signal<Conge[]>([]);
+  // Computed filtered list that reacts to both conges and filters
+  congesFiltres = computed(() => {
+    let filtered = [...this.conges()];
+    
+    if (this.filtreAgent()) {
+      filtered = filtered.filter(c => c.agentId === this.filtreAgent());
+    }
+    
+    if (this.filtreStatut()) {
+      filtered = filtered.filter(c => c.statut === this.filtreStatut());
+    }
+    
+    if (this.filtrePeriode()) {
+      const aujourdhui = new Date();
+      aujourdhui.setHours(0, 0, 0, 0);
+      
+      if (this.filtrePeriode() === 'passes') {
+        filtered = filtered.filter(c => {
+          const dateFin = new Date(c.dateFin);
+          dateFin.setHours(0, 0, 0, 0);
+          return dateFin < aujourdhui;
+        });
+      } else if (this.filtrePeriode() === 'avenir') {
+        filtered = filtered.filter(c => {
+          const dateDebut = new Date(c.dateDebut);
+          dateDebut.setHours(0, 0, 0, 0);
+          return dateDebut >= aujourdhui;
+        });
+      }
+    }
+    
+    // Sort by date
+    return filtered.sort((a, b) => new Date(b.dateDebut).getTime() - new Date(a.dateDebut).getTime());
+  });
   
   afficherModal = false;
   congeEnEdition: Conge | null = null;
-  filtreAgent = '';
-  filtreStatut = '';
-  filtrePeriode = '';
+  filtreAgent = signal<string>('');
+  filtreStatut = signal<string>('');
+  filtrePeriode = signal<string>('');
 
   readonly TypeConge = TypeConge;
   readonly StatutConge = StatutConge;
@@ -586,51 +619,12 @@ export class CongesComponent {
   });
 
   constructor() {
-    // Initialize filtered list from computed conges
-    effect(() => {
-      const sorted = [...this.conges()].sort((a, b) => 
-        new Date(b.dateDebut).getTime() - new Date(a.dateDebut).getTime()
-      );
-      this.congesFiltres.set(sorted);
-    });
+    // No initialization needed, computed signal will handle updates
   }
 
   appliquerFiltre(): void {
-    let filtered = [...this.conges()];
-    
-    if (this.filtreAgent) {
-      filtered = filtered.filter(c => c.agentId === this.filtreAgent);
-    }
-    
-    if (this.filtreStatut) {
-      filtered = filtered.filter(c => c.statut === this.filtreStatut);
-    }
-    
-    if (this.filtrePeriode) {
-      const aujourdhui = new Date();
-      aujourdhui.setHours(0, 0, 0, 0);
-      
-      if (this.filtrePeriode === 'passes') {
-        // Congés passés : dateFin < aujourd'hui
-        filtered = filtered.filter(c => {
-          const dateFin = new Date(c.dateFin);
-          dateFin.setHours(0, 0, 0, 0);
-          return dateFin < aujourdhui;
-        });
-      } else if (this.filtrePeriode === 'avenir') {
-        // Congés à venir : dateDebut >= aujourd'hui
-        filtered = filtered.filter(c => {
-          const dateDebut = new Date(c.dateDebut);
-          dateDebut.setHours(0, 0, 0, 0);
-          return dateDebut >= aujourdhui;
-        });
-      }
-    }
-    
-    // Sort by date
-    filtered.sort((a, b) => new Date(b.dateDebut).getTime() - new Date(a.dateDebut).getTime());
-    
-    this.congesFiltres.set(filtered);
+    // No need to manually update, computed signal will react to filter changes
+    // This method is kept for the template's (change) event
   }
 
   canEditConge(conge: Conge): boolean {
