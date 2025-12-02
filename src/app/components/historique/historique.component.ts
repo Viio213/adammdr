@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DataService } from '../../services/data.service';
@@ -236,7 +236,8 @@ export class HistoriqueComponent {
   private pdfExport = inject(PdfExportService);
   private authService = inject(AuthService);
 
-  historique = signal<HistoriqueEntry[]>([]);
+  // Use computed to reactively get historique from DataService
+  historique = computed(() => this.dataService.historique());
   historiqueFiltre = signal<HistoriqueEntry[]>([]);
   dateDebut: string = '';
   dateFin: string = '';
@@ -244,13 +245,10 @@ export class HistoriqueComponent {
   canEdit = this.authService.hasPermission('canEditHistorique');
 
   constructor() {
-    this.chargerHistorique();
-  }
-
-  chargerHistorique(): void {
-    const historique = this.dataService.getHistorique();
-    this.historique.set(historique);
-    this.historiqueFiltre.set(historique);
+    // Initialize filtered list from computed historique
+    effect(() => {
+      this.historiqueFiltre.set([...this.historique()]);
+    });
   }
 
   appliquerFiltres(): void {
@@ -279,17 +277,17 @@ export class HistoriqueComponent {
     this.historiqueFiltre.set([...this.historique()]);
   }
 
-  sauvegarderEntry(entry: HistoriqueEntry): void {
+  async sauvegarderEntry(entry: HistoriqueEntry): Promise<void> {
     if (!this.canEdit) return;
-    this.dataService.updateHistoriqueEntry(entry);
-    this.chargerHistorique();
+    await this.dataService.updateHistoriqueEntry(entry);
+    // No need to manually reload, computed signal will update automatically
   }
 
-  supprimerEntry(id: string): void {
+  async supprimerEntry(id: string): Promise<void> {
     if (!this.canEdit) return;
     if (confirm('Êtes-vous sûr de vouloir supprimer cette entrée ?')) {
-      this.dataService.deleteHistoriqueEntry(id);
-      this.chargerHistorique();
+      await this.dataService.deleteHistoriqueEntry(id);
+      // No need to manually reload, computed signal will update automatically
     }
   }
 

@@ -186,24 +186,34 @@ export class DataService {
       if (existingIndex >= 0) {
         const existingPlanning = this.plannings()[existingIndex];
         await this.supabase.deletePlanning(existingPlanning.id);
+        // Remove from local array
+        const planningsWithoutOld = this.plannings().filter(p => p.id !== existingPlanning.id);
+        this.plannings.set(planningsWithoutOld);
       }
 
       const newPlanning = await this.supabase.createPlanning(planning);
       
-      let plannings: PlanningSemaine[];
-      if (existingIndex >= 0) {
-        plannings = [...this.plannings()];
-        plannings[existingIndex] = newPlanning;
-      } else {
-        plannings = [...this.plannings(), newPlanning];
-      }
-      
+      // Add new planning to array
+      const plannings = [...this.plannings(), newPlanning];
       this.plannings.set(plannings);
       this.lastPlanningId = newPlanning.id;
     } catch (error) {
       console.error('Error adding planning:', error);
-      // Fallback to local
-      let plannings = [...this.plannings(), planning];
+      // Fallback to local: remove existing and add new
+      const existingIndex = this.plannings().findIndex(p => {
+        const pDebut = new Date(p.dateDebut).toISOString().split('T')[0];
+        const newDebut = new Date(planning.dateDebut).toISOString().split('T')[0];
+        return pDebut === newDebut;
+      });
+      
+      let plannings: PlanningSemaine[];
+      if (existingIndex >= 0) {
+        plannings = this.plannings().filter((_, index) => index !== existingIndex);
+        plannings.push(planning);
+      } else {
+        plannings = [...this.plannings(), planning];
+      }
+      
       this.plannings.set(plannings);
       this.lastPlanningId = planning.id;
     }

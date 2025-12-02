@@ -1,7 +1,8 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { StatistiquesService } from '../../services/statistiques.service';
 import { PdfExportService } from '../../services/pdf-export.service';
+import { DataService } from '../../services/data.service';
 import { 
   StatistiqueBinome, 
   StatistiqueZone, 
@@ -541,27 +542,19 @@ import {
 export class StatistiquesComponent {
   private statistiquesService = inject(StatistiquesService);
   private pdfExport = inject(PdfExportService);
+  private dataService = inject(DataService);
 
-  statistiquesBinomes = signal<StatistiqueBinome[]>([]);
-  statistiquesZones = signal<StatistiqueZone[]>([]);
-  statistiquesAgents = signal<StatistiqueAgent[]>([]);
-  statistiquesVehicules = signal<StatistiqueVehicule[]>([]);
-  statistiquesExterieur = signal<StatistiqueExterieur[]>([]);
-  statistiquesEcoles = signal<StatistiqueEcole[]>([]);
-  pairesPlusFrequentes = signal<StatistiqueBinome[]>([]);
+  // Use computed to reactively recalculate statistics when historique changes
+  statistiquesBinomes = computed(() => this.statistiquesService.getStatistiquesBinomes());
+  statistiquesZones = computed(() => this.statistiquesService.getStatistiquesZones());
+  statistiquesAgents = computed(() => this.statistiquesService.getStatistiquesAgents());
+  statistiquesVehicules = computed(() => this.statistiquesService.getStatistiquesVehicules());
+  statistiquesExterieur = computed(() => this.statistiquesService.getStatistiquesExterieur());
+  statistiquesEcoles = computed(() => this.statistiquesService.getStatistiquesEcoles());
+  pairesPlusFrequentes = computed(() => this.statistiquesService.getPairesPlusFrequentes(10));
 
   constructor() {
-    this.chargerStatistiques();
-  }
-
-  chargerStatistiques(): void {
-    this.statistiquesBinomes.set(this.statistiquesService.getStatistiquesBinomes());
-    this.statistiquesZones.set(this.statistiquesService.getStatistiquesZones());
-    this.statistiquesAgents.set(this.statistiquesService.getStatistiquesAgents());
-    this.statistiquesVehicules.set(this.statistiquesService.getStatistiquesVehicules());
-    this.statistiquesExterieur.set(this.statistiquesService.getStatistiquesExterieur());
-    this.statistiquesEcoles.set(this.statistiquesService.getStatistiquesEcoles());
-    this.pairesPlusFrequentes.set(this.statistiquesService.getPairesPlusFrequentes(10));
+    // Statistics will be recalculated automatically when historique changes
   }
 
   getTotalVehicule(): number {

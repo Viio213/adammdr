@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { AuthService } from '../../services/auth.service';
@@ -528,8 +528,10 @@ export class UtilisateursComponent {
   private dataService = inject(DataService);
   private fb = inject(FormBuilder);
 
-  users = signal<User[]>([]);
-  agents = signal<Agent[]>([]);
+  // Use computed to reactively get data from services
+  users = computed(() => this.authService.users());
+  agents = computed(() => this.dataService.agents());
+  
   afficherModal = false;
   afficherModalPassword = false;
   utilisateurEnEdition: User | null = null;
@@ -551,30 +553,17 @@ export class UtilisateursComponent {
     agentId: ['']
   });
 
-  // Agents not already linked to a user
-  agentsDisponibles = signal<Agent[]>([]);
-
-  constructor() {
-    this.chargerUtilisateurs();
-    this.chargerAgents();
-  }
-
-  chargerUtilisateurs(): void {
-    this.users.set(this.authService.getUsers());
-  }
-
-  chargerAgents(): void {
-    this.agents.set(this.dataService.getAgents());
-    this.updateAgentsDisponibles();
-  }
-
-  updateAgentsDisponibles(excludeUserId?: string): void {
+  // Agents not already linked to a user - computed reactively
+  agentsDisponibles = computed(() => {
     const usersWithAgents = this.users()
-      .filter(u => u.agentId && u.id !== excludeUserId)
+      .filter(u => u.agentId && u.id !== this.utilisateurEnEdition?.id)
       .map(u => u.agentId);
     
-    const disponibles = this.agents().filter(a => !usersWithAgents.includes(a.id));
-    this.agentsDisponibles.set(disponibles);
+    return this.agents().filter(a => !usersWithAgents.includes(a.id));
+  });
+
+  constructor() {
+    // No need to manually load, computed signals will react to changes
   }
 
   getAgentName(agentId?: string): string {
@@ -612,7 +601,6 @@ export class UtilisateursComponent {
 
   ouvrirModalAjout(): void {
     this.utilisateurEnEdition = null;
-    this.updateAgentsDisponibles();
     this.userForm.reset({ 
       role: UserRole.UTILISATEUR, 
       actif: true, 
@@ -626,7 +614,6 @@ export class UtilisateursComponent {
 
   editerUtilisateur(user: User): void {
     this.utilisateurEnEdition = user;
-    this.updateAgentsDisponibles(user.id);
     
     // Determine current agent link type
     let agentLinkType = 'none';
@@ -715,8 +702,7 @@ export class UtilisateursComponent {
       }
     }
 
-    this.chargerUtilisateurs();
-    this.chargerAgents();
+    // No need to manually reload, computed signals will update automatically
     this.fermerModal();
   }
 
@@ -772,7 +758,7 @@ export class UtilisateursComponent {
         alert(result.message);
         return;
       }
-      this.chargerUtilisateurs();
+      // No need to manually reload, computed signal will update automatically
     }
   }
 

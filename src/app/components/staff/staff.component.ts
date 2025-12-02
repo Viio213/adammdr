@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { DataService } from '../../services/data.service';
@@ -277,7 +277,8 @@ export class StaffComponent {
   private dataService = inject(DataService);
   private fb = inject(FormBuilder);
 
-  agents = signal<Agent[]>([]);
+  // Use computed to reactively get agents from DataService
+  agents = computed(() => this.dataService.agents());
   afficherModal = false;
   agentEnEdition: Agent | null = null;
   disponibilitesTemporaires: Map<string, boolean> = new Map();
@@ -295,11 +296,7 @@ export class StaffComponent {
   });
 
   constructor() {
-    this.chargerAgents();
-  }
-
-  chargerAgents(): void {
-    this.agents.set(this.dataService.getAgents());
+    // No need to manually load, computed signal will react to changes
   }
 
   getTypeContratLabel(type: TypeContrat): string {
@@ -377,19 +374,19 @@ export class StaffComponent {
     };
 
     if (this.agentEnEdition) {
-      this.dataService.updateAgent(agent);
+      await this.dataService.updateAgent(agent);
     } else {
-      this.dataService.addAgent(agent);
+      await this.dataService.addAgent(agent);
     }
 
-    this.chargerAgents();
+    // No need to manually reload, computed signal will update automatically
     this.fermerModal();
   }
 
-  supprimerAgent(id: string): void {
+  async supprimerAgent(id: string): Promise<void> {
     if (confirm('Êtes-vous sûr de vouloir supprimer cet agent ?')) {
-      this.dataService.deleteAgent(id);
-      this.chargerAgents();
+      await this.dataService.deleteAgent(id);
+      // No need to manually reload, computed signal will update automatically
     }
   }
 

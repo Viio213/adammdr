@@ -1017,7 +1017,9 @@ export class PlanningComponent {
   dateGroupeEdition: Date | null = null;
   periodeGroupeEdition: DemiJournee | null = null;
   selectedAgents: Agent[] = [];
-  allAgents = signal<Agent[]>([]);
+
+  // Use computed to reactively get agents from DataService
+  allAgents = computed(() => this.dataService.agents());
 
   // Computed: agents disponibles pour la période
   agentsDisponibles = computed(() => {
@@ -1026,59 +1028,79 @@ export class PlanningComponent {
 
   constructor() {
     this.chargerPlanningActuel();
-    this.allAgents.set(this.dataService.getAgents());
   }
 
   async genererPlanningHebdo(): Promise<void> {
-    // Refresh data from Supabase before generating (to get latest conges)
-    await this.dataService.refreshAgents();
-    await this.dataService.refreshConges();
-    
-    // Get the Monday of the selected week (fix: always start on Monday)
-    const selectedDate = new Date(this.dateDebutSemaine);
-    const dateDebut = this.getLundiSemaine(selectedDate);
-    
-    const planning = this.planningGenerator.generatePlanningSemaine(dateDebut);
-    
-    await this.dataService.addPlanning(planning);
-    this.planningActuel.set(planning);
-    
-    // Update the date input to show the actual Monday
-    this.dateDebutSemaine = dateDebut.toISOString().split('T')[0];
+    try {
+      // Refresh data from Supabase before generating (to get latest conges)
+      await this.dataService.refreshAgents();
+      await this.dataService.refreshConges();
+      
+      // Get the Monday of the selected week (fix: always start on Monday)
+      const selectedDate = new Date(this.dateDebutSemaine);
+      const dateDebut = this.getLundiSemaine(selectedDate);
+      
+      // Generate new planning (this will replace existing one for same week)
+      const planning = this.planningGenerator.generatePlanningSemaine(dateDebut);
+      
+      // Add/update planning in database (addPlanning handles replacement of existing)
+      await this.dataService.addPlanning(planning);
+      
+      // Update the current planning signal with the newly generated planning
+      // The service has already updated its internal state
+      this.planningActuel.set(planning);
+      
+      // Update the date input to show the actual Monday
+      this.dateDebutSemaine = dateDebut.toISOString().split('T')[0];
+    } catch (error) {
+      console.error('Error generating planning:', error);
+      // Show user-friendly error message
+      alert('Erreur lors de la génération du planning. Veuillez réessayer.');
+    }
   }
 
   async genererJour(jour: JourSemaine): Promise<void> {
-    const planning = this.planningActuel();
-    if (!planning) return;
+    try {
+      const planning = this.planningActuel();
+      if (!planning) return;
 
-    // Refresh conges before regenerating
-    await this.dataService.refreshConges();
+      // Refresh conges before regenerating
+      await this.dataService.refreshConges();
 
-    const updatedPlanning = this.planningGenerator.regenerateJour(planning, jour);
-    
-    // Update in storage
-    await this.dataService.updatePlanning(updatedPlanning);
-    
-    this.planningActuel.set(updatedPlanning);
+      const updatedPlanning = this.planningGenerator.regenerateJour(planning, jour);
+      
+      // Update in storage
+      await this.dataService.updatePlanning(updatedPlanning);
+      
+      this.planningActuel.set(updatedPlanning);
+    } catch (error) {
+      console.error('Error regenerating day:', error);
+      alert('Erreur lors de la régénération du jour. Veuillez réessayer.');
+    }
   }
 
   async confirmerPlanning(): Promise<void> {
-    const planning = this.planningActuel();
-    if (!planning || planning.isConfirmed) return;
+    try {
+      const planning = this.planningActuel();
+      if (!planning || planning.isConfirmed) return;
 
-    if (!confirm('Confirmer ce planning ? Il sera enregistré dans l\'historique et les statistiques.')) {
-      return;
+      if (!confirm('Confirmer ce planning ? Il sera enregistré dans l\'historique et les statistiques.')) {
+        return;
+      }
+
+      // Confirm and save to history
+      await this.dataService.confirmPlanning(planning);
+      
+      // Convert to historique entries
+      const historiqueEntries = this.planningGenerator.planningToHistorique(planning);
+      await this.dataService.addHistoriqueEntries(historiqueEntries);
+
+      // Reload
+      this.planningActuel.set({ ...planning, isConfirmed: true, dateConfirmation: new Date() });
+    } catch (error) {
+      console.error('Error confirming planning:', error);
+      alert('Erreur lors de la confirmation du planning. Veuillez réessayer.');
     }
-
-    // Confirm and save to history
-    await this.dataService.confirmPlanning(planning);
-    
-    // Convert to historique entries
-    const historiqueEntries = this.planningGenerator.planningToHistorique(planning);
-    await this.dataService.addHistoriqueEntries(historiqueEntries);
-
-    // Reload
-    this.planningActuel.set({ ...planning, isConfirmed: true, dateConfirmation: new Date() });
   }
 
   chargerPlanningActuel(): void {
@@ -1134,9 +1156,14 @@ export class PlanningComponent {
   }
 
   async sauvegarderPlanning(): Promise<void> {
-    const planning = this.planningActuel();
-    if (planning) {
-      await this.dataService.updatePlanning(planning);
+    try {
+      const planning = this.planningActuel();
+      if (planning) {
+        await this.dataService.updatePlanning(planning);
+      }
+    } catch (error) {
+      console.error('Error saving planning:', error);
+      // Don't show alert for auto-save, just log the error
     }
   }
 
@@ -1234,17 +1261,22 @@ export class PlanningComponent {
     }
   }
 
-  sauvegarderBinome(): void {
-    if (!this.groupeEnEdition || this.selectedAgents.length < 2) return;
+  async sauvegarderBinome(): Promise<void> {
+    try {
+      if (!this.groupeEnEdition || this.selectedAgents.length < 2) return;
 
-    // Update the group's agents
-    this.groupeEnEdition.agents = [...this.selectedAgents];
-    
-    // Save the planning
-    this.sauvegarderPlanning();
-    
-    // Close modal
-    this.fermerModalBinome();
+      // Update the group's agents
+      this.groupeEnEdition.agents = [...this.selectedAgents];
+      
+      // Save the planning
+      await this.sauvegarderPlanning();
+      
+      // Close modal
+      this.fermerModalBinome();
+    } catch (error) {
+      console.error('Error saving binome:', error);
+      alert('Erreur lors de la sauvegarde du binôme. Veuillez réessayer.');
+    }
   }
 
   // ============================================

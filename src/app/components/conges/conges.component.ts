@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, inject, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { DataService } from '../../services/data.service';
@@ -515,9 +515,23 @@ export class CongesComponent {
   private authService = inject(AuthService);
   private fb = inject(FormBuilder);
 
-  conges = signal<Conge[]>([]);
+  // Use computed to reactively get data from DataService
+  agents = computed(() => this.dataService.agents());
+  conges = computed(() => {
+    const allConges = this.dataService.conges();
+    // Filter for users to only see their own leaves
+    if (!this.canViewAllConges) {
+      const agent = this.monAgent();
+      if (agent) {
+        return allConges.filter(c => c.agentId === agent.id);
+      } else {
+        return [];
+      }
+    }
+    return allConges;
+  });
+  
   congesFiltres = signal<Conge[]>([]);
-  agents = signal<Agent[]>([]);
   
   afficherModal = false;
   congeEnEdition: Conge | null = null;
@@ -559,7 +573,7 @@ export class CongesComponent {
 
   // Count pending requests
   pendingCount = computed(() => {
-    return this.conges().filter(c => c.statut === StatutConge.EN_ATTENTE).length;
+    return this.dataService.conges().filter(c => c.statut === StatutConge.EN_ATTENTE).length;
   });
 
   congeForm: FormGroup = this.fb.group({
@@ -572,31 +586,13 @@ export class CongesComponent {
   });
 
   constructor() {
-    this.chargerDonnees();
-  }
-
-  async chargerDonnees(): Promise<void> {
-    // Load agents and conges from Supabase database
-    const agents = await this.dataService.refreshAgents();
-    this.agents.set(agents);
-    
-    let conges = await this.dataService.refreshConges();
-    
-    // Filter for users to only see their own leaves
-    if (!this.canViewAllConges) {
-      const agent = this.monAgent();
-      if (agent) {
-        conges = conges.filter(c => c.agentId === agent.id);
-      } else {
-        conges = [];
-      }
-    }
-    
-    // Sort by date
-    conges.sort((a, b) => new Date(b.dateDebut).getTime() - new Date(a.dateDebut).getTime());
-    
-    this.conges.set(conges);
-    this.congesFiltres.set(conges);
+    // Initialize filtered list from computed conges
+    effect(() => {
+      const sorted = [...this.conges()].sort((a, b) => 
+        new Date(b.dateDebut).getTime() - new Date(a.dateDebut).getTime()
+      );
+      this.congesFiltres.set(sorted);
+    });
   }
 
   appliquerFiltre(): void {
@@ -631,6 +627,9 @@ export class CongesComponent {
       }
     }
     
+    // Sort by date
+    filtered.sort((a, b) => new Date(b.dateDebut).getTime() - new Date(a.dateDebut).getTime());
+    
     this.congesFiltres.set(filtered);
   }
 
@@ -650,7 +649,7 @@ export class CongesComponent {
         validePar: this.authService.currentUser()?.id
       };
       await this.dataService.updateConge(updatedConge);
-      this.chargerDonnees();
+      // No need to manually reload, computed signal will update automatically
     }
   }
 
@@ -663,7 +662,7 @@ export class CongesComponent {
         validePar: this.authService.currentUser()?.id
       };
       await this.dataService.updateConge(updatedConge);
-      this.chargerDonnees();
+      // No need to manually reload, computed signal will update automatically
     }
   }
 
@@ -783,14 +782,14 @@ export class CongesComponent {
       await this.dataService.addConge(conge);
     }
 
-    this.chargerDonnees();
+    // No need to manually reload, computed signal will update automatically
     this.fermerModal();
   }
 
   async supprimerConge(id: string): Promise<void> {
     if (confirm('Êtes-vous sûr de vouloir supprimer ce congé ?')) {
       await this.dataService.deleteConge(id);
-      this.chargerDonnees();
+      // No need to manually reload, computed signal will update automatically
     }
   }
 
@@ -841,7 +840,7 @@ export class CongesComponent {
   ): { date: Date; nombreAgents: number }[] {
     const joursAlerte: { date: Date; nombreAgents: number }[] = [];
     const agents = this.agents();
-    const conges = this.conges().filter(c => c.statut === StatutConge.VALIDE); // Only validated leaves
+    const conges = this.dataService.conges().filter(c => c.statut === StatutConge.VALIDE); // Only validated leaves
     const agent = agents.find(a => a.id === agentId);
     
     if (!agent) return joursAlerte;
