@@ -15,7 +15,7 @@ import { NotificationService } from '../../services/notification.service';
 
 // Types of conflicts that can occur
 export interface ConflitGroupe {
-  type: 'AGENT_OCCUPE' | 'MEME_BINOME_JOURNEE' | 'MEME_ZONE_JOURNEE' | 'PAIRE_FREQUENTE';
+  type: 'AGENT_OCCUPE' | 'MEME_BINOME_JOURNEE' | 'MEME_ZONE_JOURNEE';
   description: string;
   agentsConcernes?: string[];
 }
@@ -1352,10 +1352,6 @@ export class PlanningComponent {
     const conflitBinome = this.checkConflitMemeBinomeJournee(groupe, jourPlanning, demiJournee);
     if (conflitBinome) conflits.push(conflitBinome);
     
-    // Check for frequent pairs
-    const conflitFrequent = this.checkConflitPaireFrequente(groupe);
-    if (conflitFrequent) conflits.push(conflitFrequent);
-    
     return conflits;
   }
 
@@ -1416,39 +1412,6 @@ export class PlanningComponent {
     return null;
   }
 
-  /**
-   * Check if a pair is too frequent (>=3 times in last 4 weeks)
-   */
-  private checkConflitPaireFrequente(groupe: Groupe): ConflitGroupe | null {
-    const historique = this.dataService.getHistorique();
-    const quatreSemainesAgo = new Date();
-    quatreSemainesAgo.setDate(quatreSemainesAgo.getDate() - 28);
-    
-    const historiqueRecent = historique.filter((h: HistoriqueEntry) => new Date(h.date) >= quatreSemainesAgo);
-    
-    // Check all pairs in the group
-    for (let i = 0; i < groupe.agents.length; i++) {
-      for (let j = i + 1; j < groupe.agents.length; j++) {
-        const agent1 = groupe.agents[i];
-        const agent2 = groupe.agents[j];
-        
-        const occurrences = historiqueRecent.filter((h: HistoriqueEntry) => {
-          const agentIds = h.agentIds || [];
-          return agentIds.includes(agent1.id) && agentIds.includes(agent2.id);
-        }).length;
-        
-        if (occurrences >= 3) {
-          return {
-            type: 'PAIRE_FREQUENTE',
-            description: `${agent1.nom} et ${agent2.nom} déjà ensemble ${occurrences}x ces 4 dernières semaines`,
-            agentsConcernes: [agent1.nom, agent2.nom]
-          };
-        }
-      }
-    }
-    
-    return null;
-  }
 
   /**
    * Get conflicts for an agent in the modal selection
@@ -1482,10 +1445,6 @@ export class PlanningComponent {
     // Check for same pair morning/afternoon with selected agents
     const conflitMemePaire = this.checkAgentMemePairJournee(agent, jourPlanning);
     if (conflitMemePaire) conflits.push(conflitMemePaire);
-    
-    // Check for frequent pairs with selected agents
-    const conflitFrequent = this.checkAgentPaireFrequente(agent);
-    if (conflitFrequent) conflits.push(conflitFrequent);
     
     return conflits;
   }
@@ -1568,35 +1527,6 @@ export class PlanningComponent {
     return null;
   }
 
-  /**
-   * Check if agent would form a frequent pair with selected agents
-   */
-  private checkAgentPaireFrequente(agent: Agent): ConflitGroupe | null {
-    const historique = this.dataService.getHistorique();
-    const quatreSemainesAgo = new Date();
-    quatreSemainesAgo.setDate(quatreSemainesAgo.getDate() - 28);
-    
-    const historiqueRecent = historique.filter((h: HistoriqueEntry) => new Date(h.date) >= quatreSemainesAgo);
-    
-    for (const autreAgent of this.selectedAgents) {
-      if (autreAgent.id === agent.id) continue;
-      
-      const occurrences = historiqueRecent.filter((h: HistoriqueEntry) => {
-        const agentIds = h.agentIds || [];
-        return agentIds.includes(agent.id) && agentIds.includes(autreAgent.id);
-      }).length;
-      
-      if (occurrences >= 3) {
-        return {
-          type: 'PAIRE_FREQUENTE',
-          description: `${agent.nom} et ${autreAgent.nom} déjà ensemble ${occurrences}x récemment`,
-          agentsConcernes: [agent.nom, autreAgent.nom]
-        };
-      }
-    }
-    
-    return null;
-  }
 
   /**
    * Check if a group has any conflicts (for displaying warning in table)
