@@ -6,12 +6,24 @@ import { ZONES, Zone, getZonesByPriority } from '../models/zone.model';
 import { DataService } from './data.service';
 import { StatistiquesService } from './statistiques.service';
 
+/**
+ * Planning Generator Service
+ * 
+ * RULES (in priority order):
+ * 1. No same pair morning AND afternoon on the same day (if possible)
+ * 2. No same agent in the same zone morning AND afternoon (if possible)
+ * 3. Avoid same pairs on consecutive days (if possible)
+ * 4. Balance pairs over time - everyone should work with everyone equally over 1 month
+ */
 @Injectable({
   providedIn: 'root'
 })
 export class PlanningGeneratorService {
   private dataService = inject(DataService);
   private statistiquesService = inject(StatistiquesService);
+  
+  // Track pairs used in the current week generation to avoid consecutive days
+  private pairsUsedByDay: Map<number, Set<string>> = new Map();
 
   /**
    * Generate a full weekly planning
@@ -21,14 +33,21 @@ export class PlanningGeneratorService {
     dateFin.setDate(dateFin.getDate() + 4); // Monday to Friday
 
     const jours: PlanningJour[] = [];
+    
+    // Reset weekly tracking
+    this.pairsUsedByDay.clear();
 
     for (let i = 0; i < 5; i++) {
       const jour = JOURS_TRAVAIL[i];
       const date = new Date(dateDebut);
       date.setDate(date.getDate() + i);
 
-      const planningJour = this.generatePlanningJour(jour, date);
+      // Pass day index for consecutive day tracking
+      const planningJour = this.generatePlanningJour(jour, date, i);
       jours.push(planningJour);
+      
+      // Track pairs used this day for next day's generation
+      this.trackPairsForDay(i, planningJour);
     }
 
     // Build entries from jours for compatibility
@@ -44,18 +63,47 @@ export class PlanningGeneratorService {
       isConfirmed: false
     };
   }
+  
+  /**
+   * Track all pairs used on a specific day
+   */
+  private trackPairsForDay(dayIndex: number, planningJour: PlanningJour): void {
+    const pairs = new Set<string>();
+    
+    [planningJour.matin, planningJour.apresMidi].forEach(entry => {
+      entry.groupes.forEach(groupe => {
+        // Generate all pairs from this group
+        for (let i = 0; i < groupe.agents.length; i++) {
+          for (let j = i + 1; j < groupe.agents.length; j++) {
+            const pairKey = this.getPairKeyById(groupe.agents[i].id, groupe.agents[j].id);
+            pairs.add(pairKey);
+          }
+        }
+      });
+    });
+    
+    this.pairsUsedByDay.set(dayIndex, pairs);
+  }
+  
+  /**
+   * Get pairs used on the previous day (for avoiding consecutive days)
+   */
+  private getPairsFromPreviousDay(dayIndex: number): Set<string> {
+    return this.pairsUsedByDay.get(dayIndex - 1) || new Set();
+  }
 
   /**
    * Generate planning for a single day
    */
-  generatePlanningJour(jour: JourSemaine, date: Date): PlanningJour {
+  generatePlanningJour(jour: JourSemaine, date: Date, dayIndex: number = 0): PlanningJour {
     const historique = this.dataService.getHistorique();
+    const previousDayPairs = this.getPairsFromPreviousDay(dayIndex);
 
     // Generate morning
-    const matin = this.generateDemiJournee(jour, date, DemiJournee.MATIN, historique, []);
+    const matin = this.generateDemiJournee(jour, date, DemiJournee.MATIN, historique, [], previousDayPairs);
 
     // Generate afternoon (must avoid same pairs as morning)
-    const apresMidi = this.generateDemiJournee(jour, date, DemiJournee.APRES_MIDI, historique, [matin]);
+    const apresMidi = this.generateDemiJournee(jour, date, DemiJournee.APRES_MIDI, historique, [matin], previousDayPairs);
 
     return {
       jour,
@@ -74,8 +122,16 @@ export class PlanningGeneratorService {
 
     const date = new Date(planning.dateDebut);
     date.setDate(date.getDate() + jourIndex);
+    
+    // Rebuild tracking from existing days
+    this.pairsUsedByDay.clear();
+    for (let i = 0; i < jourIndex; i++) {
+      if (planning.jours[i]) {
+        this.trackPairsForDay(i, planning.jours[i]);
+      }
+    }
 
-    const newPlanningJour = this.generatePlanningJour(jour, date);
+    const newPlanningJour = this.generatePlanningJour(jour, date, jourIndex);
 
     const updatedJours = [...planning.jours];
     updatedJours[jourIndex] = newPlanningJour;
@@ -94,13 +150,20 @@ export class PlanningGeneratorService {
   /**
    * Generate planning for a half-day
    * IMPORTANT: All available agents MUST be included in the planning
+   * 
+   * RULES applied:
+   * 1. No same pair morning AND afternoon (same day)
+   * 2. No same agent in same zone morning AND afternoon
+   * 3. Avoid same pairs on consecutive days
+   * 4. Balance pairs over time (favor less frequent pairs)
    */
   private generateDemiJournee(
     jour: JourSemaine,
     date: Date,
     demiJournee: DemiJournee,
     historique: HistoriqueEntry[],
-    entriesMemeJour: PlanningEntry[]
+    entriesMemeJour: PlanningEntry[],
+    previousDayPairs: Set<string> = new Set()
   ): PlanningEntry {
     // Get available agents for this half-day (considering leaves)
     const allAgents = this.dataService.getAgents().filter(a => a.actif);
@@ -187,7 +250,8 @@ export class PlanningGeneratorService {
         entriesMemeJour,
         zone,
         zonesMatin,
-        exterieurStats
+        exterieurStats,
+        previousDayPairs
       );
 
       if (agentsGroupe.length >= 2) {
@@ -272,11 +336,14 @@ export class PlanningGeneratorService {
 
   /**
    * Select agents for a group with rebalancing based on statistics
-   * Goals:
-   * - For exterior zones (Z1, Z4): prioritize agents with LOWER exterior percentage
-   * - Favor pairs that have worked together LESS often (toward 50% balance)
-   * - Avoid same pairs from morning in afternoon
-   * - Add randomness to ensure different planning each time
+   * 
+   * RULES (in priority order):
+   * 1. No same pair morning AND afternoon on the same day (HARD rule - score 999999)
+   * 2. No same agent in the same zone morning AND afternoon (SOFT rule - filtered first)
+   * 3. Avoid same pairs on consecutive days (SOFT rule - penalty score 100)
+   * 4. Balance pairs over time - favor less frequent pairs (score based on frequency)
+   * 5. For exterior zones: prioritize agents with LOWER exterior percentage
+   * 6. Add randomness to ensure different planning each time
    */
   private selectAgentsPourGroupe(
     agentsDisponibles: Agent[],
@@ -287,15 +354,16 @@ export class PlanningGeneratorService {
     entriesMemeJour: PlanningEntry[],
     zone: Zone,
     zonesMatin: Map<string, string>,
-    exterieurStats: { agentId: string; pourcentageExterieur: number }[]
+    exterieurStats: { agentId: string; pourcentageExterieur: number }[],
+    previousDayPairs: Set<string> = new Set()
   ): Agent[] {
-    // Filter agents who weren't in the same zone in the morning
+    // RULE 2: Filter agents who weren't in the same zone in the morning
     let candidats = agentsDisponibles.filter(a => {
       const zoneMatin = zonesMatin.get(a.id);
       return !zoneMatin || zoneMatin !== zone.id;
     });
 
-    // If not enough candidates, use all available
+    // If not enough candidates after zone filtering, use all available
     if (candidats.length < taille) {
       candidats = [...agentsDisponibles];
     }
@@ -308,8 +376,15 @@ export class PlanningGeneratorService {
       this.shuffleArray(candidats);
     }
 
-    // Get pair statistics for rebalancing
+    // Get pair statistics for rebalancing (RULE 4)
     const pairStats = this.statistiquesService.getStatistiquesBinomes();
+    
+    // Calculate ideal pair frequency for perfect balance
+    const agents = this.dataService.getAgents().filter(a => a.actif);
+    const totalPairs = (agents.length * (agents.length - 1)) / 2;
+    const avgFrequency = pairStats.length > 0 
+      ? pairStats.reduce((sum, p) => sum + p.nombreOccurrences, 0) / Math.max(totalPairs, 1)
+      : 0;
 
     const selected: Agent[] = [];
 
@@ -318,24 +393,24 @@ export class PlanningGeneratorService {
       selected.push(candidats[0]);
     }
 
-    // Select remaining agents based on pair frequency (favor less frequent pairs)
+    // Select remaining agents based on comprehensive scoring
     const remainingCandidats = candidats.slice(1);
     
-    // Sort remaining candidates by pair score with already selected agents
-    // Lower score = better (less frequent pairing)
+    // Score each candidate based on all rules
     const scoredCandidats = remainingCandidats.map(agent => {
-      // CRITICAL: Check if this agent forms a pair with ANY selected agent in the morning
-      // This ensures we never have the same pair morning and afternoon
+      let score = 0;
+      
+      // RULE 1: Check if this agent forms a pair with ANY selected agent in the morning
+      // This is a HARD rule - absolutely avoid
       const formesPaireMatin = selected.some(a => 
         this.pairExisteDansPeriode(a, agent, entriesMemeJour, DemiJournee.MATIN)
       );
       
       if (formesPaireMatin) {
-        return { agent, score: 999999 }; // Very high score = absolutely avoid
+        return { agent, score: 999999 }; // HARD rule violation
       }
 
       // Also check if this agent would form a pair with any agent already in a morning group
-      // (in case we're building a group and need to check all morning groups)
       const formePaireAvecAutreGroupeMatin = this.agentFormePaireAvecGroupeMatin(
         agent, 
         selected, 
@@ -343,58 +418,76 @@ export class PlanningGeneratorService {
       );
       
       if (formePaireAvecAutreGroupeMatin) {
-        return { agent, score: 999999 }; // Very high score = absolutely avoid
+        return { agent, score: 999999 }; // HARD rule violation
       }
 
-      // Calculate score based on pair frequency with selected agents
-      let totalPairScore = 0;
+      // RULE 3: Check if this pair was used yesterday (consecutive days)
+      // This is a SOFT rule - penalize but don't forbid
+      for (const selectedAgent of selected) {
+        const pairKey = this.getPairKeyById(agent.id, selectedAgent.id);
+        if (previousDayPairs.has(pairKey)) {
+          score += 100; // Significant penalty for consecutive days
+        }
+      }
+
+      // RULE 4: Calculate score based on pair frequency with selected agents
+      // Lower frequency = better (we want to balance pairs over time)
       for (const selectedAgent of selected) {
         const pairCount = this.getPairFrequency(agent, selectedAgent, pairStats);
-        totalPairScore += pairCount;
+        // Score increases with frequency - penalize pairs that worked together often
+        // The further from average, the higher the penalty
+        const frequencyPenalty = Math.max(0, pairCount - avgFrequency);
+        score += frequencyPenalty * 2; // Weight for frequency balancing
       }
 
-      // Add small random factor to break ties and add variety (only if no forbidden pairs)
-      const randomFactor = Math.random() * 0.5; // Small random factor (0-0.5)
-      return { agent, score: totalPairScore + randomFactor };
+      // RULE 6: Add small random factor to break ties and add variety
+      const randomFactor = Math.random() * 0.5;
+      score += randomFactor;
+      
+      return { agent, score };
     });
 
-    // Sort by score (ascending - lowest pair frequency first)
+    // Sort by score (ascending - lowest score = best candidate)
     scoredCandidats.sort((a, b) => a.score - b.score);
 
-    // Add agents with lowest scores
+    // Add agents with lowest scores (skip HARD rule violations)
     for (const { agent, score } of scoredCandidats) {
       if (selected.length >= taille) break;
-      if (score < 999999) { // Skip forbidden pairs
+      if (score < 999999) { // Skip HARD rule violations
         selected.push(agent);
       }
     }
 
-    // If we couldn't find enough, take any remaining (but still avoid forbidden pairs)
+    // If we couldn't find enough without HARD violations, try SOFT violations
     if (selected.length < taille) {
+      // First try candidates with consecutive day penalty (score < 999999)
       for (const { agent, score } of scoredCandidats) {
         if (selected.length >= taille) break;
-        // Only add if not already selected AND not a forbidden pair
         if (!selected.includes(agent) && score < 999999) {
           selected.push(agent);
         }
       }
     }
 
-    // Final fallback: take first available that doesn't form forbidden pair
+    // Final fallback: if still not enough, we MUST include agents even with HARD violations
+    // (this happens when there are very few agents available)
     if (selected.length < 2) {
       for (const agent of candidats) {
         if (selected.length >= taille) break;
-        // Check if adding this agent would create a forbidden pair
-        const formesPaireMatin = selected.some(a => 
-          this.pairExisteDansPeriode(a, agent, entriesMemeJour, DemiJournee.MATIN)
-        );
-        if (!formesPaireMatin && !selected.includes(agent)) {
+        if (!selected.includes(agent)) {
           selected.push(agent);
         }
       }
     }
 
     return selected;
+  }
+  
+  /**
+   * Generate a pair key from agent IDs (sorted for consistency)
+   */
+  private getPairKeyById(agentId1: string, agentId2: string): string {
+    return agentId1 < agentId2 ? `${agentId1}|${agentId2}` : `${agentId2}|${agentId1}`;
   }
 
   /**
