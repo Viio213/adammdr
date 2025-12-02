@@ -1043,12 +1043,12 @@ export class PlanningComponent {
       // Generate new planning (this will replace existing one for same week)
       const planning = this.planningGenerator.generatePlanningSemaine(dateDebut);
       
-      // Add/update planning in database (addPlanning handles replacement of existing)
-      await this.dataService.addPlanning(planning);
+      // Add/update planning in database (addPlanning handles replacement of existing and returns the created planning)
+      const createdPlanning = await this.dataService.addPlanning(planning);
       
-      // Update the current planning signal with the newly generated planning
-      // The service has already updated its internal state
-      this.planningActuel.set(planning);
+      // Update the current planning signal with the planning returned from the service
+      // This ensures we use the correct ID and synchronized data from Supabase
+      this.planningActuel.set(createdPlanning);
       
       // Update the date input to show the actual Monday
       this.dateDebutSemaine = dateDebut.toISOString().split('T')[0];

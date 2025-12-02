@@ -174,7 +174,7 @@ export class DataService {
     return this.plannings();
   }
 
-  async addPlanning(planning: PlanningSemaine): Promise<void> {
+  async addPlanning(planning: PlanningSemaine): Promise<PlanningSemaine> {
     try {
       // Remove existing planning for the same week if exists
       const existingIndex = this.plannings().findIndex(p => {
@@ -197,6 +197,8 @@ export class DataService {
       const plannings = [...this.plannings(), newPlanning];
       this.plannings.set(plannings);
       this.lastPlanningId = newPlanning.id;
+      
+      return newPlanning;
     } catch (error) {
       console.error('Error adding planning:', error);
       // Fallback to local: remove existing and add new
@@ -216,6 +218,8 @@ export class DataService {
       
       this.plannings.set(plannings);
       this.lastPlanningId = planning.id;
+      
+      return planning;
     }
   }
 
