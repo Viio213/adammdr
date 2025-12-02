@@ -347,7 +347,7 @@ export class StaffComponent {
     }
   }
 
-  sauvegarderAgent(): void {
+  async sauvegarderAgent(): Promise<void> {
     if (!this.agentForm.valid) return;
 
     const formValue = this.agentForm.value;
