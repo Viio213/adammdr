@@ -221,6 +221,9 @@ export class PlanningGeneratorService {
 
     let zoneIndex = 0;
 
+    // Get all morning pairs for quick lookup
+    const pairesMatin = this.getAllPairsFromEntries(entriesMemeJour, DemiJournee.MATIN);
+
     // First pass: create groups of 2 or 3
     while (agentsUtilises.size < agentsDisponibles.length) {
       const agentsRestants = agentsDisponibles.filter(a => !agentsUtilises.has(a.id));
@@ -236,8 +239,13 @@ export class PlanningGeneratorService {
         tailleGroupe = 3; // Make first group a trinôme if odd total
       }
 
-      // Select zone for this group
-      const zone = zonesDisponibles[zoneIndex % zonesDisponibles.length];
+      // Select zone for this group - try to find one that respects zone rules
+      let zone = this.selectBestZoneForAgents(
+        agentsRestants,
+        zonesDisponibles,
+        zoneIndex,
+        zonesMatin
+      );
       zoneIndex++;
 
       // Select agents with rebalancing for exterior zones
@@ -251,7 +259,8 @@ export class PlanningGeneratorService {
         zone,
         zonesMatin,
         exterieurStats,
-        previousDayPairs
+        previousDayPairs,
+        pairesMatin
       );
 
       if (agentsGroupe.length >= 2) {
@@ -279,15 +288,22 @@ export class PlanningGeneratorService {
     const agentsNonAssignes = agentsDisponibles.filter(a => !agentsUtilises.has(a.id));
     
     if (agentsNonAssignes.length > 0 && groupes.length > 0) {
-      // Add remaining agents to existing groups
+      // Add remaining agents to existing groups - RESPECTING RULES
       for (const agent of agentsNonAssignes) {
-        // Find the smallest group to add this agent to
-        const plusPetitGroupe = groupes.reduce((min, g) => 
-          g.agents.length < min.agents.length ? g : min
-        , groupes[0]);
+        // Find the best group to add this agent to (respecting rules)
+        const bestGroupe = this.findBestGroupeForAgent(agent, groupes, zonesMatin, pairesMatin);
         
-        plusPetitGroupe.agents.push(agent);
-        agentsUtilises.add(agent.id);
+        if (bestGroupe) {
+          bestGroupe.agents.push(agent);
+          agentsUtilises.add(agent.id);
+        } else {
+          // No valid group found - add to smallest group as fallback
+          const plusPetitGroupe = groupes.reduce((min, g) => 
+            g.agents.length < min.agents.length ? g : min
+          , groupes[0]);
+          plusPetitGroupe.agents.push(agent);
+          agentsUtilises.add(agent.id);
+        }
       }
     } else if (agentsNonAssignes.length > 0 && groupes.length === 0) {
       // No groups created yet but we have agents - create a group with all of them
@@ -305,12 +321,52 @@ export class PlanningGeneratorService {
       });
     }
 
+    // VALIDATION: Log any rule violations for debugging
+    if (demiJournee === DemiJournee.APRES_MIDI) {
+      this.validateAfternoonRules(groupes, entriesMemeJour, zonesMatin);
+    }
+
     return {
       jour,
       demiJournee,
       groupes,
       isGenerated: true
     };
+  }
+  
+  /**
+   * Validate afternoon planning against morning rules
+   * This is for debugging - logs violations to console
+   */
+  private validateAfternoonRules(
+    groupesApresMidi: Groupe[],
+    entriesMemeJour: PlanningEntry[],
+    zonesMatin: Map<string, string>
+  ): void {
+    const pairesMatin = this.getAllPairsFromEntries(entriesMemeJour, DemiJournee.MATIN);
+    
+    for (const groupe of groupesApresMidi) {
+      // Check each pair in this afternoon group
+      for (let i = 0; i < groupe.agents.length; i++) {
+        for (let j = i + 1; j < groupe.agents.length; j++) {
+          const agent1 = groupe.agents[i];
+          const agent2 = groupe.agents[j];
+          const pairKey = this.getPairKeyById(agent1.id, agent2.id);
+          
+          // Rule 1: Same pair morning and afternoon
+          if (pairesMatin.has(pairKey)) {
+            console.warn(`⚠️ RULE VIOLATION: Same pair morning & afternoon: ${agent1.nom} + ${agent2.nom}`);
+          }
+        }
+        
+        // Rule 2: Same zone morning and afternoon
+        const agent = groupe.agents[i];
+        const zoneMatin = zonesMatin.get(agent.id);
+        if (zoneMatin && zoneMatin === groupe.zoneId) {
+          console.warn(`⚠️ RULE VIOLATION: Same zone morning & afternoon: ${agent.nom} in zone ${groupe.zoneId}`);
+        }
+      }
+    }
   }
 
   /**
@@ -333,13 +389,110 @@ export class PlanningGeneratorService {
     
     return zonesMatin;
   }
+  
+  /**
+   * Get all pairs from entries for a specific period
+   */
+  private getAllPairsFromEntries(entries: PlanningEntry[], demiJournee: DemiJournee): Set<string> {
+    const pairs = new Set<string>();
+    
+    entries
+      .filter(e => e.demiJournee === demiJournee)
+      .forEach(entry => {
+        entry.groupes.forEach(groupe => {
+          // Generate all pairs from this group
+          for (let i = 0; i < groupe.agents.length; i++) {
+            for (let j = i + 1; j < groupe.agents.length; j++) {
+              const pairKey = this.getPairKeyById(groupe.agents[i].id, groupe.agents[j].id);
+              pairs.add(pairKey);
+            }
+          }
+        });
+      });
+    
+    return pairs;
+  }
+  
+  /**
+   * Select the best zone for a group of agents, respecting zone rules
+   */
+  private selectBestZoneForAgents(
+    agents: Agent[],
+    zonesDisponibles: Zone[],
+    startIndex: number,
+    zonesMatin: Map<string, string>
+  ): Zone {
+    // Try each zone starting from startIndex
+    for (let i = 0; i < zonesDisponibles.length; i++) {
+      const zone = zonesDisponibles[(startIndex + i) % zonesDisponibles.length];
+      
+      // Count how many agents were in this zone in the morning
+      const agentsInSameZone = agents.filter(a => zonesMatin.get(a.id) === zone.id).length;
+      
+      // If at least 2 agents can be assigned without violating zone rule, use this zone
+      if (agents.length - agentsInSameZone >= 2) {
+        return zone;
+      }
+    }
+    
+    // Fallback: return zone at startIndex
+    return zonesDisponibles[startIndex % zonesDisponibles.length];
+  }
+  
+  /**
+   * Find the best group to add an agent to, respecting rules
+   */
+  private findBestGroupeForAgent(
+    agent: Agent,
+    groupes: Groupe[],
+    zonesMatin: Map<string, string>,
+    pairesMatin: Set<string>
+  ): Groupe | null {
+    const agentZoneMatin = zonesMatin.get(agent.id);
+    
+    // Score each group
+    const scoredGroupes = groupes.map(groupe => {
+      let score = 0;
+      
+      // RULE 1: Check if adding this agent creates a forbidden pair (same as morning)
+      const createsForbiddenPair = groupe.agents.some(a => {
+        const pairKey = this.getPairKeyById(agent.id, a.id);
+        return pairesMatin.has(pairKey);
+      });
+      
+      if (createsForbiddenPair) {
+        score += 1000; // Heavy penalty
+      }
+      
+      // RULE 2: Check if same zone as morning
+      if (agentZoneMatin && groupe.zoneId === agentZoneMatin) {
+        score += 500; // Penalty for same zone
+      }
+      
+      // Prefer smaller groups
+      score += groupe.agents.length * 10;
+      
+      return { groupe, score };
+    });
+    
+    // Sort by score (lowest first)
+    scoredGroupes.sort((a, b) => a.score - b.score);
+    
+    // Return best group if it doesn't violate HARD rules
+    if (scoredGroupes.length > 0 && scoredGroupes[0].score < 1000) {
+      return scoredGroupes[0].groupe;
+    }
+    
+    // If all groups violate rules, return the one with lowest score
+    return scoredGroupes.length > 0 ? scoredGroupes[0].groupe : null;
+  }
 
   /**
    * Select agents for a group with rebalancing based on statistics
    * 
    * RULES (in priority order):
    * 1. No same pair morning AND afternoon on the same day (HARD rule - score 999999)
-   * 2. No same agent in the same zone morning AND afternoon (SOFT rule - filtered first)
+   * 2. No same agent in the same zone morning AND afternoon (HARD rule - filtered first)
    * 3. Avoid same pairs on consecutive days (SOFT rule - penalty score 100)
    * 4. Balance pairs over time - favor less frequent pairs (score based on frequency)
    * 5. For exterior zones: prioritize agents with LOWER exterior percentage
@@ -355,18 +508,18 @@ export class PlanningGeneratorService {
     zone: Zone,
     zonesMatin: Map<string, string>,
     exterieurStats: { agentId: string; pourcentageExterieur: number }[],
-    previousDayPairs: Set<string> = new Set()
+    previousDayPairs: Set<string> = new Set(),
+    pairesMatin: Set<string> = new Set()
   ): Agent[] {
-    // RULE 2: Filter agents who weren't in the same zone in the morning
-    let candidats = agentsDisponibles.filter(a => {
+    // RULE 2 (HARD): Filter agents who weren't in the same zone in the morning
+    const candidatsZoneOk = agentsDisponibles.filter(a => {
       const zoneMatin = zonesMatin.get(a.id);
       return !zoneMatin || zoneMatin !== zone.id;
     });
-
-    // If not enough candidates after zone filtering, use all available
-    if (candidats.length < taille) {
-      candidats = [...agentsDisponibles];
-    }
+    
+    // Use zone-filtered candidates if we have enough, otherwise mark zone violations
+    const useZoneFiltered = candidatsZoneOk.length >= taille;
+    let candidats = useZoneFiltered ? candidatsZoneOk : [...agentsDisponibles];
 
     // For exterior zones (Z1, Z4), sort by exterior percentage (lowest first for rebalancing)
     if (zone.isExterieur) {
@@ -388,37 +541,49 @@ export class PlanningGeneratorService {
 
     const selected: Agent[] = [];
 
-    // Select first agent (for exterior zones, use the one with lowest exterior %)
-    if (candidats.length > 0) {
-      selected.push(candidats[0]);
+    // Select first agent - prefer one that respects zone rule
+    let firstAgent: Agent | null = null;
+    for (const agent of candidats) {
+      const zoneMatin = zonesMatin.get(agent.id);
+      if (!zoneMatin || zoneMatin !== zone.id) {
+        firstAgent = agent;
+        break;
+      }
+    }
+    // Fallback to first candidate if no zone-compliant agent found
+    if (!firstAgent && candidats.length > 0) {
+      firstAgent = candidats[0];
+    }
+    if (firstAgent) {
+      selected.push(firstAgent);
     }
 
     // Select remaining agents based on comprehensive scoring
-    const remainingCandidats = candidats.slice(1);
+    const remainingCandidats = candidats.filter(a => a.id !== firstAgent?.id);
     
     // Score each candidate based on all rules
     const scoredCandidats = remainingCandidats.map(agent => {
       let score = 0;
       
-      // RULE 1: Check if this agent forms a pair with ANY selected agent in the morning
-      // This is a HARD rule - absolutely avoid
-      const formesPaireMatin = selected.some(a => 
-        this.pairExisteDansPeriode(a, agent, entriesMemeJour, DemiJournee.MATIN)
-      );
-      
-      if (formesPaireMatin) {
-        return { agent, score: 999999 }; // HARD rule violation
+      // RULE 2 (HARD): Check if agent was in same zone in the morning
+      const zoneMatin = zonesMatin.get(agent.id);
+      if (zoneMatin && zoneMatin === zone.id) {
+        score += 500000; // Very high penalty for same zone
       }
-
-      // Also check if this agent would form a pair with any agent already in a morning group
-      const formePaireAvecAutreGroupeMatin = this.agentFormePaireAvecGroupeMatin(
-        agent, 
-        selected, 
-        entriesMemeJour
-      );
       
-      if (formePaireAvecAutreGroupeMatin) {
-        return { agent, score: 999999 }; // HARD rule violation
+      // RULE 1 (HARD): Check if this agent forms a pair with ANY selected agent in the morning
+      // Use the pre-computed pairesMatin set for efficiency
+      for (const selectedAgent of selected) {
+        const pairKey = this.getPairKeyById(agent.id, selectedAgent.id);
+        if (pairesMatin.has(pairKey)) {
+          score += 999999; // HARD rule violation - same pair morning and afternoon
+          break;
+        }
+      }
+      
+      // If already a HARD violation, return early
+      if (score >= 500000) {
+        return { agent, score };
       }
 
       // RULE 3: Check if this pair was used yesterday (consecutive days)
@@ -435,7 +600,6 @@ export class PlanningGeneratorService {
       for (const selectedAgent of selected) {
         const pairCount = this.getPairFrequency(agent, selectedAgent, pairStats);
         // Score increases with frequency - penalize pairs that worked together often
-        // The further from average, the higher the penalty
         const frequencyPenalty = Math.max(0, pairCount - avgFrequency);
         score += frequencyPenalty * 2; // Weight for frequency balancing
       }
@@ -450,26 +614,42 @@ export class PlanningGeneratorService {
     // Sort by score (ascending - lowest score = best candidate)
     scoredCandidats.sort((a, b) => a.score - b.score);
 
-    // Add agents with lowest scores (skip HARD rule violations)
+    // Add agents with lowest scores
+    // First pass: only agents without HARD violations
     for (const { agent, score } of scoredCandidats) {
       if (selected.length >= taille) break;
-      if (score < 999999) { // Skip HARD rule violations
-        selected.push(agent);
-      }
-    }
-
-    // If we couldn't find enough without HARD violations, try SOFT violations
-    if (selected.length < taille) {
-      // First try candidates with consecutive day penalty (score < 999999)
-      for (const { agent, score } of scoredCandidats) {
-        if (selected.length >= taille) break;
-        if (!selected.includes(agent) && score < 999999) {
+      if (score < 500000) { // No HARD rule violations
+        // Double-check: verify this agent doesn't form a forbidden pair with ANY already selected agent
+        const formsForbiddenPair = selected.some(sel => {
+          const pairKey = this.getPairKeyById(agent.id, sel.id);
+          return pairesMatin.has(pairKey);
+        });
+        
+        if (!formsForbiddenPair) {
           selected.push(agent);
         }
       }
     }
 
-    // Final fallback: if still not enough, we MUST include agents even with HARD violations
+    // Second pass: if not enough, allow zone violations but not pair violations
+    if (selected.length < taille) {
+      for (const { agent, score } of scoredCandidats) {
+        if (selected.length >= taille) break;
+        if (!selected.includes(agent) && score < 999999) {
+          // Check pair rule again
+          const formsForbiddenPair = selected.some(sel => {
+            const pairKey = this.getPairKeyById(agent.id, sel.id);
+            return pairesMatin.has(pairKey);
+          });
+          
+          if (!formsForbiddenPair) {
+            selected.push(agent);
+          }
+        }
+      }
+    }
+
+    // Final fallback: if still not enough, we MUST include agents
     // (this happens when there are very few agents available)
     if (selected.length < 2) {
       for (const agent of candidats) {
