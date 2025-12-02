@@ -324,13 +324,26 @@ export class PlanningGeneratorService {
     // Sort remaining candidates by pair score with already selected agents
     // Lower score = better (less frequent pairing)
     const scoredCandidats = remainingCandidats.map(agent => {
-      // Check if forbidden (same pair in morning)
+      // CRITICAL: Check if this agent forms a pair with ANY selected agent in the morning
+      // This ensures we never have the same pair morning and afternoon
       const formesPaireMatin = selected.some(a => 
         this.pairExisteDansPeriode(a, agent, entriesMemeJour, DemiJournee.MATIN)
       );
       
       if (formesPaireMatin) {
-        return { agent, score: 999999 }; // Very high score = avoid
+        return { agent, score: 999999 }; // Very high score = absolutely avoid
+      }
+
+      // Also check if this agent would form a pair with any agent already in a morning group
+      // (in case we're building a group and need to check all morning groups)
+      const formePaireAvecAutreGroupeMatin = this.agentFormePaireAvecGroupeMatin(
+        agent, 
+        selected, 
+        entriesMemeJour
+      );
+      
+      if (formePaireAvecAutreGroupeMatin) {
+        return { agent, score: 999999 }; // Very high score = absolutely avoid
       }
 
       // Calculate score based on pair frequency with selected agents
@@ -340,7 +353,7 @@ export class PlanningGeneratorService {
         totalPairScore += pairCount;
       }
 
-      // Add small random factor to break ties and add variety
+      // Add small random factor to break ties and add variety (only if no forbidden pairs)
       const randomFactor = Math.random() * 0.5; // Small random factor (0-0.5)
       return { agent, score: totalPairScore + randomFactor };
     });
@@ -356,19 +369,29 @@ export class PlanningGeneratorService {
       }
     }
 
-    // If we couldn't find enough, take any remaining
+    // If we couldn't find enough, take any remaining (but still avoid forbidden pairs)
     if (selected.length < taille) {
-      for (const { agent } of scoredCandidats) {
+      for (const { agent, score } of scoredCandidats) {
         if (selected.length >= taille) break;
-        if (!selected.includes(agent)) {
+        // Only add if not already selected AND not a forbidden pair
+        if (!selected.includes(agent) && score < 999999) {
           selected.push(agent);
         }
       }
     }
 
-    // Final fallback: just take the first available
+    // Final fallback: take first available that doesn't form forbidden pair
     if (selected.length < 2) {
-      return candidats.slice(0, Math.min(taille, candidats.length));
+      for (const agent of candidats) {
+        if (selected.length >= taille) break;
+        // Check if adding this agent would create a forbidden pair
+        const formesPaireMatin = selected.some(a => 
+          this.pairExisteDansPeriode(a, agent, entriesMemeJour, DemiJournee.MATIN)
+        );
+        if (!formesPaireMatin && !selected.includes(agent)) {
+          selected.push(agent);
+        }
+      }
     }
 
     return selected;
@@ -424,6 +447,45 @@ export class PlanningGeneratorService {
           groupe.agents.some(a => a.id === agent2.id)
         )
       );
+  }
+
+  /**
+   * Check if an agent would form a pair with any agent in the selected group
+   * that already exists in a morning group
+   * This ensures we don't have the same pair morning and afternoon
+   */
+  private agentFormePaireAvecGroupeMatin(
+    agent: Agent,
+    selectedAgents: Agent[],
+    entriesMemeJour: PlanningEntry[]
+  ): boolean {
+    // Get all morning groups
+    const matinEntries = entriesMemeJour.filter(e => e.demiJournee === DemiJournee.MATIN);
+    
+    // Check if this agent forms a pair (2+ agents together) with any selected agent
+    // in any morning group
+    for (const matinEntry of matinEntries) {
+      for (const groupeMatin of matinEntry.groupes) {
+        // Check if at least 1 agent from selectedAgents is in this morning group
+        const agentsEnCommun = groupeMatin.agents.filter(a => 
+          selectedAgents.some(sa => sa.id === a.id)
+        );
+        
+        // If 1+ agents from selectedAgents are in this morning group,
+        // check if 'agent' is also in this same morning group
+        if (agentsEnCommun.length >= 1) {
+          const agentDansGroupeMatin = groupeMatin.agents.some(a => a.id === agent.id);
+          
+          // If agent is in the same morning group as a selected agent,
+          // we're forming a forbidden pair (same pair morning and afternoon)
+          if (agentDansGroupeMatin) {
+            return true;
+          }
+        }
+      }
+    }
+    
+    return false;
   }
 
   /**
