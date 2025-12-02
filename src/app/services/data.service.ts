@@ -237,6 +237,25 @@ export class DataService {
     }
   }
 
+  async deletePlanning(id: string): Promise<void> {
+    try {
+      await this.supabase.deletePlanning(id);
+      const plannings = this.plannings().filter(p => p.id !== id);
+      this.plannings.set(plannings);
+      // Clear lastPlanningId if it was the deleted planning
+      if (this.lastPlanningId === id) {
+        this.lastPlanningId = null;
+      }
+    } catch (error) {
+      console.error('Error deleting planning:', error);
+      const plannings = this.plannings().filter(p => p.id !== id);
+      this.plannings.set(plannings);
+      if (this.lastPlanningId === id) {
+        this.lastPlanningId = null;
+      }
+    }
+  }
+
   getPlanningActuel(): PlanningSemaine | null {
     // First, try to get the last viewed planning by ID
     if (this.lastPlanningId) {

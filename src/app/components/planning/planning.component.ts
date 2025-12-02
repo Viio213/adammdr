@@ -1040,6 +1040,22 @@ export class PlanningComponent {
       const selectedDate = new Date(this.dateDebutSemaine);
       const dateDebut = this.getLundiSemaine(selectedDate);
       
+      // Check if a planning exists for this week and delete it explicitly
+      const existingPlanning = this.dataService.getPlanningByDate(dateDebut);
+      if (existingPlanning) {
+        // Clear current planning first to force UI update
+        if (this.planningActuel()?.id === existingPlanning.id) {
+          this.planningActuel.set(null);
+        }
+        // Delete the existing planning explicitly before generating new one
+        // Note: addPlanning will also handle deletion, but we do it here to ensure it's done
+        try {
+          await (this.dataService as any).deletePlanning(existingPlanning.id);
+        } catch (deleteError) {
+          console.warn('Error deleting existing planning (will be handled by addPlanning):', deleteError);
+        }
+      }
+      
       // Generate new planning (this will replace existing one for same week)
       const planning = this.planningGenerator.generatePlanningSemaine(dateDebut);
       
