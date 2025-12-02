@@ -104,9 +104,12 @@ export class PlanningGeneratorService {
   ): PlanningEntry {
     // Get available agents for this half-day (considering leaves)
     const allAgents = this.dataService.getAgents().filter(a => a.actif);
-    const agentsDisponibles = allAgents.filter(agent =>
+    let agentsDisponibles = allAgents.filter(agent =>
       this.dataService.isAgentAvailable(agent.id, date, demiJournee)
     );
+    
+    // Shuffle agents to add randomness to planning generation
+    this.shuffleArray(agentsDisponibles);
 
     // If only 1 agent available, create a solo group
     if (agentsDisponibles.length === 1) {
@@ -139,7 +142,16 @@ export class PlanningGeneratorService {
     const zonesMatin = this.getZonesMatinParAgent(entriesMemeJour);
 
     // Available zones sorted by priority (Z2, Z3 first, then Z4, then Z1)
-    const zonesDisponibles = getZonesByPriority();
+    let zonesDisponibles = getZonesByPriority();
+    
+    // Shuffle zones slightly to add variety (but keep priority order for first few groups)
+    // Shuffle only after first 2 zones to maintain some priority
+    if (zonesDisponibles.length > 2) {
+      const priorityZones = zonesDisponibles.slice(0, 2);
+      const otherZones = zonesDisponibles.slice(2);
+      this.shuffleArray(otherZones);
+      zonesDisponibles = [...priorityZones, ...otherZones];
+    }
 
     // Get exterior statistics for rebalancing
     const exterieurStats = this.statistiquesService.getAgentsForExterieurRebalancing();
@@ -264,6 +276,7 @@ export class PlanningGeneratorService {
    * - For exterior zones (Z1, Z4): prioritize agents with LOWER exterior percentage
    * - Favor pairs that have worked together LESS often (toward 50% balance)
    * - Avoid same pairs from morning in afternoon
+   * - Add randomness to ensure different planning each time
    */
   private selectAgentsPourGroupe(
     agentsDisponibles: Agent[],
@@ -290,6 +303,9 @@ export class PlanningGeneratorService {
     // For exterior zones (Z1, Z4), sort by exterior percentage (lowest first for rebalancing)
     if (zone.isExterieur) {
       candidats = this.sortAgentsByExterieurPriority(candidats, exterieurStats);
+    } else {
+      // For interior zones, shuffle to add randomness
+      this.shuffleArray(candidats);
     }
 
     // Get pair statistics for rebalancing
@@ -324,7 +340,9 @@ export class PlanningGeneratorService {
         totalPairScore += pairCount;
       }
 
-      return { agent, score: totalPairScore };
+      // Add small random factor to break ties and add variety
+      const randomFactor = Math.random() * 0.5; // Small random factor (0-0.5)
+      return { agent, score: totalPairScore + randomFactor };
     });
 
     // Sort by score (ascending - lowest pair frequency first)
