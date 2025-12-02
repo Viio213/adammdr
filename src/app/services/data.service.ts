@@ -125,7 +125,8 @@ export class DataService {
    * Refresh all data from Supabase
    */
   async refreshData(): Promise<void> {
-    this.initialized = false;
+    this.isInitialized.set(false);
+    this.initPromise = null;
     await this.initializeData();
   }
 

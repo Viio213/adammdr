@@ -440,7 +440,7 @@ export class StaffComponent {
     this.disponibilitesTemporaires.set(key, checked);
   }
 
-  voirDisponibilites(agent: Agent): void {
+  async voirDisponibilites(agent: Agent): Promise<void> {
     const dispoText = agent.disponibilites
       .filter(d => d.disponible)
       .map(d => `${d.jour} ${d.demiJournee === 'MATIN' ? 'Matin' : 'AM'}`)
