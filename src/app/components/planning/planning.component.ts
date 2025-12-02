@@ -11,6 +11,7 @@ import { PlanningSemaine, PlanningJour, Groupe } from '../../models/planning.mod
 import { Agent, JourSemaine, DemiJournee, JOURS_TRAVAIL } from '../../models/agent.model';
 import { HistoriqueEntry } from '../../models/historique.model';
 import { ZONES } from '../../models/zone.model';
+import { ConfirmModalComponent, ConfirmModalConfig } from '../shared/confirm-modal.component';
 
 // Types of conflicts that can occur
 export interface ConflitGroupe {
@@ -22,7 +23,7 @@ export interface ConflitGroupe {
 @Component({
   selector: 'app-planning',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ConfirmModalComponent],
   template: `
     <div class="page-container">
       <div class="card">
@@ -414,6 +415,14 @@ export interface ConflitGroupe {
         </ng-template>
       </div>
     </div>
+
+    <!-- Modal de confirmation -->
+    <app-confirm-modal
+      [isOpen]="showConfirmModal"
+      [config]="confirmModalConfig"
+      (confirmed)="onConfirmModalConfirm()"
+      (cancelled)="onConfirmModalCancel()">
+    </app-confirm-modal>
 
     <!-- Modal pour modifier les binômes -->
     <div class="modal-overlay" *ngIf="showBinomeModal" (click)="fermerModalBinome($event)">
@@ -1017,6 +1026,15 @@ export class PlanningComponent {
   dateGroupeEdition: Date | null = null;
   periodeGroupeEdition: DemiJournee | null = null;
   selectedAgents: Agent[] = [];
+  
+  // Modal de confirmation
+  showConfirmModal = false;
+  confirmModalConfig: ConfirmModalConfig = {
+    title: '',
+    message: '',
+    type: 'info'
+  };
+  private confirmModalResolver: ((value: boolean) => void) | null = null;
 
   // Use computed to reactively get agents from DataService
   allAgents = computed(() => this.dataService.agents());
@@ -1100,9 +1118,16 @@ export class PlanningComponent {
       const planning = this.planningActuel();
       if (!planning || planning.isConfirmed) return;
 
-      if (!confirm('Confirmer ce planning ? Il sera enregistré dans l\'historique et les statistiques.')) {
-        return;
-      }
+      const confirmed = await this.showConfirm({
+        title: 'Confirmer le planning',
+        message: 'Ce planning sera enregistré dans l\'historique et les statistiques. Cette action est définitive.',
+        confirmText: 'Confirmer',
+        cancelText: 'Annuler',
+        type: 'success',
+        icon: '✓'
+      });
+      
+      if (!confirmed) return;
 
       // Confirm and save to history
       await this.dataService.confirmPlanning(planning);
@@ -1116,6 +1141,31 @@ export class PlanningComponent {
     } catch (error) {
       console.error('Error confirming planning:', error);
       alert('Erreur lors de la confirmation du planning. Veuillez réessayer.');
+    }
+  }
+  
+  // Modal de confirmation personnalisée
+  private showConfirm(config: ConfirmModalConfig): Promise<boolean> {
+    return new Promise((resolve) => {
+      this.confirmModalConfig = config;
+      this.confirmModalResolver = resolve;
+      this.showConfirmModal = true;
+    });
+  }
+  
+  onConfirmModalConfirm(): void {
+    this.showConfirmModal = false;
+    if (this.confirmModalResolver) {
+      this.confirmModalResolver(true);
+      this.confirmModalResolver = null;
+    }
+  }
+  
+  onConfirmModalCancel(): void {
+    this.showConfirmModal = false;
+    if (this.confirmModalResolver) {
+      this.confirmModalResolver(false);
+      this.confirmModalResolver = null;
     }
   }
 
