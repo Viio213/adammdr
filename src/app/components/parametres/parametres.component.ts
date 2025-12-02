@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DataService } from '../../services/data.service';
 import { ExcelExportService } from '../../services/excel-export.service';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-parametres',
@@ -193,6 +194,7 @@ import { ExcelExportService } from '../../services/excel-export.service';
 export class ParametresComponent {
   private dataService = inject(DataService);
   private excelExport = inject(ExcelExportService);
+  private notification = inject(NotificationService);
 
   showWarning = false;
   nombreAgents = 0;
@@ -224,15 +226,21 @@ export class ParametresComponent {
     this.excelExport.exportAllToExcel();
   }
 
-  importerDonnees(event: Event): void {
+  async importerDonnees(event: Event): Promise<void> {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     
     if (!file) return;
 
-    if (!confirm('Cette action remplacera toutes vos données actuelles. Continuer ?')) {
-      return;
-    }
+    const confirmed = await this.notification.confirm({
+      title: 'Importer des données',
+      message: 'Cette action remplacera toutes vos données actuelles. Continuer ?',
+      confirmText: 'Importer',
+      cancelText: 'Annuler',
+      type: 'warning'
+    });
+    
+    if (!confirmed) return;
 
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -241,15 +249,26 @@ export class ParametresComponent {
         const success = await this.dataService.importData(jsonData);
         
         if (success) {
-          alert('Données importées avec succès !');
+          await this.notification.alert({
+            title: 'Succès',
+            message: 'Données importées avec succès !',
+            type: 'success'
+          });
           this.chargerStatistiques();
-          // Reload page to refresh all components
           window.location.reload();
         } else {
-          alert('Erreur lors de l\'import des données.');
+          await this.notification.alert({
+            title: 'Erreur',
+            message: 'Erreur lors de l\'import des données.',
+            type: 'danger'
+          });
         }
       } catch (error) {
-        alert('Erreur: Fichier invalide.');
+        await this.notification.alert({
+          title: 'Erreur',
+          message: 'Fichier invalide.',
+          type: 'danger'
+        });
         console.error(error);
       }
     };
@@ -257,37 +276,69 @@ export class ParametresComponent {
   }
 
   async resetDatabase(): Promise<void> {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer l\'historique, les statistiques et les congés ? Cette action est irréversible !')) {
-      return;
-    }
+    const confirmed1 = await this.notification.confirm({
+      title: 'Réinitialiser la base',
+      message: 'Êtes-vous sûr de vouloir supprimer l\'historique, les statistiques et les congés ? Cette action est irréversible !',
+      confirmText: 'Continuer',
+      cancelText: 'Annuler',
+      type: 'danger'
+    });
+    
+    if (!confirmed1) return;
 
-    if (!confirm('Dernière confirmation : supprimer l\'historique, les statistiques et les congés ?')) {
-      return;
-    }
+    const confirmed2 = await this.notification.confirm({
+      title: 'Dernière confirmation',
+      message: 'Supprimer l\'historique, les statistiques et les congés ?',
+      confirmText: 'Supprimer',
+      cancelText: 'Annuler',
+      type: 'danger'
+    });
+    
+    if (!confirmed2) return;
 
     const result = await this.dataService.resetDatabase();
     
+    await this.notification.alert({
+      title: result.success ? 'Succès' : 'Erreur',
+      message: result.message,
+      type: result.success ? 'success' : 'danger'
+    });
+    
     if (result.success) {
-      alert(result.message);
       this.chargerStatistiques();
-      // Reload page to refresh all components
       window.location.reload();
-    } else {
-      alert(result.message);
     }
   }
 
-  reinitialiserDonnees(): void {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer TOUTES les données ? Cette action est irréversible !')) {
-      return;
-    }
+  async reinitialiserDonnees(): Promise<void> {
+    const confirmed1 = await this.notification.confirm({
+      title: 'Supprimer toutes les données',
+      message: 'Êtes-vous sûr de vouloir supprimer TOUTES les données ? Cette action est irréversible !',
+      confirmText: 'Continuer',
+      cancelText: 'Annuler',
+      type: 'danger'
+    });
+    
+    if (!confirmed1) return;
 
-    if (!confirm('Dernière confirmation : supprimer toutes les données ?')) {
-      return;
-    }
+    const confirmed2 = await this.notification.confirm({
+      title: 'Dernière confirmation',
+      message: 'Supprimer définitivement toutes les données ?',
+      confirmText: 'Supprimer tout',
+      cancelText: 'Annuler',
+      type: 'danger'
+    });
+    
+    if (!confirmed2) return;
 
     localStorage.clear();
-    alert('Toutes les données ont été supprimées. La page va se recharger.');
+    
+    await this.notification.alert({
+      title: 'Données supprimées',
+      message: 'Toutes les données ont été supprimées. La page va se recharger.',
+      type: 'success'
+    });
+    
     window.location.reload();
   }
 }

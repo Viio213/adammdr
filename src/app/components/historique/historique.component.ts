@@ -6,7 +6,7 @@ import { ExcelExportService } from '../../services/excel-export.service';
 import { PdfExportService } from '../../services/pdf-export.service';
 import { AuthService } from '../../services/auth.service';
 import { HistoriqueEntry } from '../../models/historique.model';
-import { ConfirmModalComponent, ConfirmModalConfig } from '../shared/confirm-modal.component';
+import { NotificationService } from '../../services/notification.service';
 
 interface HistoriqueJour {
   date: Date;
@@ -18,7 +18,7 @@ interface HistoriqueJour {
 @Component({
   selector: 'app-historique',
   standalone: true,
-  imports: [CommonModule, FormsModule, ConfirmModalComponent],
+  imports: [CommonModule, FormsModule],
   template: `
     <div class="page-container">
       <div class="card">
@@ -28,12 +28,14 @@ interface HistoriqueJour {
             <input 
               type="date" 
               [(ngModel)]="dateDebut" 
+              [max]="dateFin || ''"
               class="date-input"
               placeholder="Date début"
             />
             <input 
               type="date" 
               [(ngModel)]="dateFin" 
+              [min]="dateDebut || ''"
               class="date-input"
               placeholder="Date fin"
             />
@@ -79,6 +81,7 @@ interface HistoriqueJour {
                   <th class="th-periode">Période</th>
                   <th class="th-binomes">Binômes</th>
                   <th class="th-zone">Zone</th>
+                  <th class="th-ecole">École</th>
                   <th class="th-vehicule">Véhicule</th>
                   <th class="th-mission">Mission</th>
                   <th class="th-reunion">Réunion</th>
@@ -90,7 +93,7 @@ interface HistoriqueJour {
                 <ng-container *ngFor="let jour of historiqueParJour()">
                   <!-- Morning rows -->
                   <ng-container *ngFor="let entry of jour.matin; let first = first; let i = index">
-                    <tr class="row-groupe" [class.row-first]="first">
+                    <tr class="row-groupe" [class.row-first]="first" [class.row-editing]="entryEnEdition?.id === entry.id">
                       <!-- Day cell -->
                       <td *ngIf="first" 
                           class="td-jour" 
@@ -120,22 +123,26 @@ interface HistoriqueJour {
                         </span>
                       </td>
                       
+                      <!-- École -->
+                      <td class="td-ecole">
+                        <span class="ecole-name">{{ entry.ecoleName || '-' }}</span>
+                      </td>
+                      
                       <!-- Véhicule -->
                       <td class="td-vehicule">
-                        <span [class]="entry.vehicule ? 'vehicule-oui' : 'vehicule-non'">
-                          {{ entry.vehicule ? '🚗' : '🚶' }}
+                        <span class="vehicule-badge" [class.vehicule-oui]="entry.vehicule">
+                          {{ entry.vehicule ? 'Oui' : 'Non' }}
                         </span>
                       </td>
                       
                       <!-- Mission -->
                       <td class="td-mission">
-                        <ng-container *ngIf="canEdit; else readOnlyMission">
+                        <ng-container *ngIf="entryEnEdition?.id === entry.id; else readOnlyMission">
                           <input 
                             type="text" 
                             [(ngModel)]="entry.mission" 
                             class="cell-input"
                             placeholder="Mission..."
-                            (blur)="sauvegarderEntry(entry)"
                           />
                         </ng-container>
                         <ng-template #readOnlyMission>
@@ -145,13 +152,12 @@ interface HistoriqueJour {
                       
                       <!-- Réunion -->
                       <td class="td-reunion">
-                        <ng-container *ngIf="canEdit; else readOnlyReunion">
+                        <ng-container *ngIf="entryEnEdition?.id === entry.id; else readOnlyReunion">
                           <input 
                             type="text" 
                             [(ngModel)]="entry.reunion" 
                             class="cell-input"
                             placeholder="Réunion..."
-                            (blur)="sauvegarderEntry(entry)"
                           />
                         </ng-container>
                         <ng-template #readOnlyReunion>
@@ -161,13 +167,12 @@ interface HistoriqueJour {
                       
                       <!-- Commentaires -->
                       <td class="td-commentaires">
-                        <ng-container *ngIf="canEdit; else readOnlyCommentaires">
+                        <ng-container *ngIf="entryEnEdition?.id === entry.id; else readOnlyCommentaires">
                           <input 
                             type="text" 
                             [(ngModel)]="entry.commentaires" 
                             class="cell-input"
                             placeholder="Commentaire..."
-                            (blur)="sauvegarderEntry(entry)"
                           />
                         </ng-container>
                         <ng-template #readOnlyCommentaires>
@@ -177,9 +182,24 @@ interface HistoriqueJour {
                       
                       <!-- Actions -->
                       <td *ngIf="canEdit" class="td-actions">
-                        <button class="btn-delete" (click)="supprimerEntry(entry.id)" title="Supprimer">
-                          🗑
-                        </button>
+                        <div class="actions-btns">
+                          <ng-container *ngIf="entryEnEdition?.id === entry.id; else showEditBtn">
+                            <button class="btn-save" (click)="sauvegarderEntry(entry)" title="Enregistrer">
+                              ✓
+                            </button>
+                            <button class="btn-cancel" (click)="annulerEdition()" title="Annuler">
+                              ✕
+                            </button>
+                          </ng-container>
+                          <ng-template #showEditBtn>
+                            <button class="btn-edit" (click)="editerEntry(entry)" title="Modifier">
+                              ✎
+                            </button>
+                            <button class="btn-delete" (click)="supprimerEntry(entry.id)" title="Supprimer">
+                              🗑
+                            </button>
+                          </ng-template>
+                        </div>
                       </td>
                     </tr>
                   </ng-container>
@@ -195,12 +215,12 @@ interface HistoriqueJour {
                     <td class="td-periode td-matin">
                       <span class="periode-badge matin">Matin</span>
                     </td>
-                    <td [attr.colspan]="canEdit ? 7 : 6" class="td-no-data">Aucune donnée</td>
+                    <td [attr.colspan]="canEdit ? 8 : 7" class="td-no-data">Aucune donnée</td>
                   </tr>
                   
                   <!-- Afternoon rows -->
                   <ng-container *ngFor="let entry of jour.apresMidi; let first = first">
-                    <tr class="row-groupe row-aprem" [class.row-first]="first">
+                    <tr class="row-groupe row-aprem" [class.row-first]="first" [class.row-editing]="entryEnEdition?.id === entry.id">
                       <!-- Après-midi indicator -->
                       <td *ngIf="first" 
                           class="td-periode td-aprem"
@@ -220,21 +240,25 @@ interface HistoriqueJour {
                         </span>
                       </td>
                       
+                      <!-- École -->
+                      <td class="td-ecole">
+                        <span class="ecole-name">{{ entry.ecoleName || '-' }}</span>
+                      </td>
+                      
                       <!-- Véhicule -->
                       <td class="td-vehicule">
-                        <span [class]="entry.vehicule ? 'vehicule-oui' : 'vehicule-non'">
-                          {{ entry.vehicule ? '🚗' : '🚶' }}
+                        <span class="vehicule-badge" [class.vehicule-oui]="entry.vehicule">
+                          {{ entry.vehicule ? 'Oui' : 'Non' }}
                         </span>
                       </td>
                       
                       <!-- Mission -->
                       <td class="td-mission">
-                        <ng-container *ngIf="canEdit; else readOnlyMissionAM">
+                        <ng-container *ngIf="entryEnEdition?.id === entry.id; else readOnlyMissionAM">
                           <input 
                             type="text" 
                             [(ngModel)]="entry.mission" 
                             class="cell-input"
-                            (blur)="sauvegarderEntry(entry)"
                           />
                         </ng-container>
                         <ng-template #readOnlyMissionAM>
@@ -244,12 +268,11 @@ interface HistoriqueJour {
                       
                       <!-- Réunion -->
                       <td class="td-reunion">
-                        <ng-container *ngIf="canEdit; else readOnlyReunionAM">
+                        <ng-container *ngIf="entryEnEdition?.id === entry.id; else readOnlyReunionAM">
                           <input 
                             type="text" 
                             [(ngModel)]="entry.reunion" 
                             class="cell-input"
-                            (blur)="sauvegarderEntry(entry)"
                           />
                         </ng-container>
                         <ng-template #readOnlyReunionAM>
@@ -259,12 +282,11 @@ interface HistoriqueJour {
                       
                       <!-- Commentaires -->
                       <td class="td-commentaires">
-                        <ng-container *ngIf="canEdit; else readOnlyCommentairesAM">
+                        <ng-container *ngIf="entryEnEdition?.id === entry.id; else readOnlyCommentairesAM">
                           <input 
                             type="text" 
                             [(ngModel)]="entry.commentaires" 
                             class="cell-input"
-                            (blur)="sauvegarderEntry(entry)"
                           />
                         </ng-container>
                         <ng-template #readOnlyCommentairesAM>
@@ -274,9 +296,24 @@ interface HistoriqueJour {
                       
                       <!-- Actions -->
                       <td *ngIf="canEdit" class="td-actions">
-                        <button class="btn-delete" (click)="supprimerEntry(entry.id)" title="Supprimer">
-                          🗑
-                        </button>
+                        <div class="actions-btns">
+                          <ng-container *ngIf="entryEnEdition?.id === entry.id; else showEditBtnAM">
+                            <button class="btn-save" (click)="sauvegarderEntry(entry)" title="Enregistrer">
+                              ✓
+                            </button>
+                            <button class="btn-cancel" (click)="annulerEdition()" title="Annuler">
+                              ✕
+                            </button>
+                          </ng-container>
+                          <ng-template #showEditBtnAM>
+                            <button class="btn-edit" (click)="editerEntry(entry)" title="Modifier">
+                              ✎
+                            </button>
+                            <button class="btn-delete" (click)="supprimerEntry(entry.id)" title="Supprimer">
+                              🗑
+                            </button>
+                          </ng-template>
+                        </div>
                       </td>
                     </tr>
                   </ng-container>
@@ -286,7 +323,7 @@ interface HistoriqueJour {
                     <td class="td-periode td-aprem">
                       <span class="periode-badge aprem">Après-midi</span>
                     </td>
-                    <td [attr.colspan]="canEdit ? 7 : 6" class="td-no-data">Aucune donnée</td>
+                    <td [attr.colspan]="canEdit ? 8 : 7" class="td-no-data">Aucune donnée</td>
                   </tr>
                 </ng-container>
               </tbody>
@@ -296,20 +333,11 @@ interface HistoriqueJour {
         
         <!-- Empty state -->
         <div class="empty-state" *ngIf="historiqueParJour().length === 0">
-          <div class="empty-icon">📋</div>
           <p class="empty-title">Aucun historique disponible</p>
           <p class="empty-subtitle">Les plannings confirmés apparaîtront ici</p>
         </div>
       </div>
     </div>
-    
-    <!-- Modal de confirmation -->
-    <app-confirm-modal
-      [isOpen]="showConfirmModal"
-      [config]="confirmModalConfig"
-      (confirmed)="onConfirmModalConfirm()"
-      (cancelled)="onConfirmModalCancel()">
-    </app-confirm-modal>
   `,
   styles: [`
     .page-container {
@@ -482,6 +510,10 @@ interface HistoriqueJour {
       background: #f8fafc;
     }
     
+    .row-editing {
+      background: #fef3c7 !important;
+    }
+    
     .row-first {
       border-top: 2px solid #e2e8f0;
     }
@@ -535,7 +567,7 @@ interface HistoriqueJour {
     }
     
     .td-binomes {
-      min-width: 180px;
+      min-width: 150px;
     }
     
     .binome-names {
@@ -544,7 +576,7 @@ interface HistoriqueJour {
     }
     
     .td-zone {
-      min-width: 100px;
+      min-width: 80px;
     }
     
     .zone-badge {
@@ -561,13 +593,33 @@ interface HistoriqueJour {
       color: #166534;
     }
     
+    .td-ecole {
+      min-width: 120px;
+    }
+    
+    .ecole-name {
+      font-size: 13px;
+      color: #475569;
+    }
+    
     .td-vehicule {
       text-align: center;
       min-width: 70px;
     }
     
-    .vehicule-oui, .vehicule-non {
-      font-size: 18px;
+    .vehicule-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      background: #f1f5f9;
+      color: #64748b;
+    }
+    
+    .vehicule-badge.vehicule-oui {
+      background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+      color: #1e40af;
     }
     
     .cell-input {
@@ -591,20 +643,46 @@ interface HistoriqueJour {
     
     .td-actions {
       text-align: center;
-      min-width: 60px;
+      min-width: 80px;
     }
     
-    .btn-delete {
+    .actions-btns {
+      display: flex;
+      gap: 4px;
+      justify-content: center;
+    }
+    
+    .btn-edit, .btn-delete, .btn-save, .btn-cancel {
       background: none;
       border: none;
       font-size: 16px;
       cursor: pointer;
-      padding: 6px 10px;
+      padding: 6px 8px;
       border-radius: 6px;
       transition: all 0.2s;
     }
     
+    .btn-edit:hover {
+      background: #dbeafe;
+    }
+    
     .btn-delete:hover {
+      background: #fee2e2;
+    }
+    
+    .btn-save {
+      color: #059669;
+    }
+    
+    .btn-save:hover {
+      background: #d1fae5;
+    }
+    
+    .btn-cancel {
+      color: #dc2626;
+    }
+    
+    .btn-cancel:hover {
       background: #fee2e2;
     }
     
@@ -628,11 +706,6 @@ interface HistoriqueJour {
       padding: 60px 20px;
     }
     
-    .empty-icon {
-      font-size: 64px;
-      margin-bottom: 16px;
-    }
-    
     .empty-title {
       font-size: 20px;
       font-weight: 600;
@@ -648,13 +721,14 @@ interface HistoriqueJour {
     
     .th-jour { min-width: 100px; }
     .th-periode { min-width: 100px; }
-    .th-binomes { min-width: 180px; }
-    .th-zone { min-width: 100px; }
+    .th-binomes { min-width: 150px; }
+    .th-zone { min-width: 80px; }
+    .th-ecole { min-width: 120px; }
     .th-vehicule { min-width: 70px; text-align: center; }
-    .th-mission { min-width: 120px; }
-    .th-reunion { min-width: 120px; }
-    .th-commentaires { min-width: 150px; }
-    .th-actions { min-width: 60px; text-align: center; }
+    .th-mission { min-width: 100px; }
+    .th-reunion { min-width: 100px; }
+    .th-commentaires { min-width: 120px; }
+    .th-actions { min-width: 80px; text-align: center; }
   `]
 })
 export class HistoriqueComponent {
@@ -662,25 +736,26 @@ export class HistoriqueComponent {
   private excelExport = inject(ExcelExportService);
   private pdfExport = inject(PdfExportService);
   private authService = inject(AuthService);
+  private notification = inject(NotificationService);
 
   // Use computed to reactively get historique from DataService
   historique = computed(() => this.dataService.historique());
   historiqueFiltre = signal<HistoriqueEntry[]>([]);
   dateDebut: string = '';
   dateFin: string = '';
+  
+  // Entry being edited
+  entryEnEdition: HistoriqueEntry | null = null;
+  entryBackup: HistoriqueEntry | null = null;
 
   canEdit = this.authService.hasPermission('canEditHistorique');
-  
-  // Modal de confirmation
-  showConfirmModal = false;
-  confirmModalConfig: ConfirmModalConfig = {
-    title: '',
-    message: '',
-    type: 'info'
-  };
-  private confirmModalResolver: ((value: boolean) => void) | null = null;
 
   constructor() {
+    this.initComponent();
+  }
+  
+  private async initComponent(): Promise<void> {
+    await this.dataService.waitForInit();
     // Initialize filtered list from computed historique
     this.historiqueFiltre.set([...this.historique()]);
   }
@@ -710,9 +785,9 @@ export class HistoriqueComponent {
       }
     });
     
-    // Sort by date descending
+    // Sort by date ascending (oldest first)
     return Array.from(joursMap.values())
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   });
   
   getJourRowspan(jour: HistoriqueJour): number {
@@ -727,6 +802,16 @@ export class HistoriqueComponent {
   }
 
   appliquerFiltres(): void {
+    // Validate dates
+    if (this.dateDebut && this.dateFin && this.dateDebut > this.dateFin) {
+      this.notification.alert({
+        title: 'Dates invalides',
+        message: 'La date de fin ne peut pas être antérieure à la date de début.',
+        type: 'warning'
+      });
+      return;
+    }
+    
     let filtered = [...this.historique()];
 
     if (this.dateDebut) {
@@ -740,8 +825,8 @@ export class HistoriqueComponent {
       filtered = filtered.filter(e => new Date(e.date) <= dateFinObj);
     }
 
-    // Sort by date descending
-    filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    // Sort by date ascending (oldest first)
+    filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     this.historiqueFiltre.set(filtered);
   }
@@ -752,53 +837,46 @@ export class HistoriqueComponent {
     // Update filtered list when resetting filters
     this.historiqueFiltre.set([...this.historique()]);
   }
+  
+  editerEntry(entry: HistoriqueEntry): void {
+    // Save backup for cancel
+    this.entryBackup = { ...entry };
+    this.entryEnEdition = entry;
+  }
+  
+  annulerEdition(): void {
+    // Restore from backup
+    if (this.entryBackup && this.entryEnEdition) {
+      this.entryEnEdition.mission = this.entryBackup.mission;
+      this.entryEnEdition.reunion = this.entryBackup.reunion;
+      this.entryEnEdition.commentaires = this.entryBackup.commentaires;
+    }
+    this.entryEnEdition = null;
+    this.entryBackup = null;
+  }
 
   async sauvegarderEntry(entry: HistoriqueEntry): Promise<void> {
     if (!this.canEdit) return;
     await this.dataService.updateHistoriqueEntry(entry);
+    this.entryEnEdition = null;
+    this.entryBackup = null;
   }
 
   async supprimerEntry(id: string): Promise<void> {
     if (!this.canEdit) return;
     
-    const confirmed = await this.showConfirm({
+    const confirmed = await this.notification.confirm({
       title: 'Supprimer cette entrée ?',
       message: 'Cette action est irréversible. L\'entrée sera définitivement supprimée de l\'historique.',
       confirmText: 'Supprimer',
       cancelText: 'Annuler',
-      type: 'danger',
-      icon: '🗑'
+      type: 'danger'
     });
     
     if (confirmed) {
       await this.dataService.deleteHistoriqueEntry(id);
       // Refresh filtered list
       this.appliquerFiltres();
-    }
-  }
-  
-  // Modal de confirmation personnalisée
-  private showConfirm(config: ConfirmModalConfig): Promise<boolean> {
-    return new Promise((resolve) => {
-      this.confirmModalConfig = config;
-      this.confirmModalResolver = resolve;
-      this.showConfirmModal = true;
-    });
-  }
-  
-  onConfirmModalConfirm(): void {
-    this.showConfirmModal = false;
-    if (this.confirmModalResolver) {
-      this.confirmModalResolver(true);
-      this.confirmModalResolver = null;
-    }
-  }
-  
-  onConfirmModalCancel(): void {
-    this.showConfirmModal = false;
-    if (this.confirmModalResolver) {
-      this.confirmModalResolver(false);
-      this.confirmModalResolver = null;
     }
   }
 

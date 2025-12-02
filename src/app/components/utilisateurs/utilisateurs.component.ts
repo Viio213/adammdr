@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { AuthService } from '../../services/auth.service';
 import { DataService } from '../../services/data.service';
+import { NotificationService } from '../../services/notification.service';
 import { User, UserRole, ROLE_LABELS } from '../../models/user.model';
 import { Agent, JourSemaine, DemiJournee, Disponibilite, TypeContrat } from '../../models/agent.model';
 
@@ -562,6 +563,8 @@ export class UtilisateursComponent {
     return this.agents().filter(a => !usersWithAgents.includes(a.id));
   });
 
+  private notification = inject(NotificationService);
+
   constructor() {
     // No need to manually load, computed signals will react to changes
   }
@@ -692,7 +695,11 @@ export class UtilisateursComponent {
       
       const result = await this.authService.addUser(newUser);
       if (!result.success) {
-        alert(result.message);
+        await this.notification.alert({
+          title: 'Erreur',
+          message: result.message,
+          type: 'danger'
+        });
         return;
       }
 
@@ -752,13 +759,23 @@ export class UtilisateursComponent {
   }
 
   async supprimerUtilisateur(id: string): Promise<void> {
-    if (confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
+    const confirmed = await this.notification.confirm({
+      title: 'Supprimer l\'utilisateur',
+      message: 'Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action est irréversible.',
+      confirmText: 'Supprimer',
+      cancelText: 'Annuler',
+      type: 'danger'
+    });
+    
+    if (confirmed) {
       const result = await this.authService.deleteUser(id);
       if (!result.success) {
-        alert(result.message);
-        return;
+        await this.notification.alert({
+          title: 'Erreur',
+          message: result.message,
+          type: 'danger'
+        });
       }
-      // No need to manually reload, computed signal will update automatically
     }
   }
 
@@ -799,7 +816,11 @@ export class UtilisateursComponent {
     if (this.utilisateurPassword) {
       await this.authService.changePassword(this.utilisateurPassword.id, this.nouveauMotDePasse);
       this.fermerModalPassword();
-      alert('Mot de passe modifié avec succès');
+      await this.notification.alert({
+        title: 'Succès',
+        message: 'Mot de passe modifié avec succès',
+        type: 'success'
+      });
     }
   }
 

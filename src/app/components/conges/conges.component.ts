@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { DataService } from '../../services/data.service';
 import { AuthService } from '../../services/auth.service';
+import { NotificationService } from '../../services/notification.service';
 import { Conge, TypeConge, TYPE_CONGE_LABELS, StatutConge, STATUT_CONGE_LABELS } from '../../models/conge.model';
 import { Agent, JourSemaine, DemiJournee } from '../../models/agent.model';
 
@@ -174,11 +175,13 @@ import { Agent, JourSemaine, DemiJournee } from '../../models/agent.model';
           <div class="form-row">
             <div class="form-group">
               <label class="form-label">Date début *</label>
-              <input type="date" formControlName="dateDebut" class="form-control" />
+              <input type="date" formControlName="dateDebut" class="form-control" 
+                     [max]="congeForm.get('dateFin')?.value || ''" />
             </div>
             <div class="form-group">
               <label class="form-label">Date fin *</label>
-              <input type="date" formControlName="dateFin" class="form-control" />
+              <input type="date" formControlName="dateFin" class="form-control"
+                     [min]="congeForm.get('dateDebut')?.value || ''" />
             </div>
           </div>
 
@@ -578,6 +581,7 @@ export class CongesComponent {
   // Permissions
   canViewAllConges = this.authService.hasPermission('canViewStaff');
   canValidateConge = this.authService.hasPermission('canValidateConge');
+  private notification = inject(NotificationService);
   
   // Get current user's linked agent
   monAgent = computed(() => {
@@ -619,7 +623,11 @@ export class CongesComponent {
   });
 
   constructor() {
-    // No initialization needed, computed signal will handle updates
+    this.initComponent();
+  }
+  
+  private async initComponent(): Promise<void> {
+    await this.dataService.waitForInit();
   }
 
   appliquerFiltre(): void {
@@ -635,7 +643,15 @@ export class CongesComponent {
   }
 
   async validerConge(conge: Conge): Promise<void> {
-    if (confirm('Valider cette demande de congé ?')) {
+    const confirmed = await this.notification.confirm({
+      title: 'Valider le congé',
+      message: 'Voulez-vous valider cette demande de congé ?',
+      confirmText: 'Valider',
+      cancelText: 'Annuler',
+      type: 'success'
+    });
+    
+    if (confirmed) {
       const updatedConge: Conge = {
         ...conge,
         statut: StatutConge.VALIDE,
@@ -648,7 +664,15 @@ export class CongesComponent {
   }
 
   async refuserConge(conge: Conge): Promise<void> {
-    if (confirm('Refuser cette demande de congé ?')) {
+    const confirmed = await this.notification.confirm({
+      title: 'Refuser le congé',
+      message: 'Voulez-vous refuser cette demande de congé ?',
+      confirmText: 'Refuser',
+      cancelText: 'Annuler',
+      type: 'danger'
+    });
+    
+    if (confirmed) {
       const updatedConge: Conge = {
         ...conge,
         statut: StatutConge.REFUSE,
@@ -743,11 +767,47 @@ export class CongesComponent {
 
     const formValue = this.congeForm.value;
     
+    // Validate dates
+    if (formValue.dateDebut > formValue.dateFin) {
+      await this.notification.alert({
+        title: 'Dates invalides',
+        message: 'La date de fin ne peut pas être antérieure à la date de début.',
+        type: 'warning'
+      });
+      return;
+    }
+    
     // Get agent from form
     const agentId = formValue.agentId;
     const agent = this.agents().find(a => a.id === agentId);
     if (!agent) return;
     const agentNom = agent.nom;
+    
+    // Check for overlapping leaves (only for new leaves, not edits)
+    if (!this.congeEnEdition) {
+      const overlappingConge = this.checkOverlappingConge(
+        agentId,
+        new Date(formValue.dateDebut),
+        new Date(formValue.dateFin),
+        formValue.demiJournee
+      );
+      
+      if (overlappingConge) {
+        const dateStr = new Date(overlappingConge.dateDebut).toLocaleDateString('fr-FR');
+        const confirmed = await this.notification.confirm({
+          title: 'Congé existant',
+          message: `Un congé existe déjà pour cet agent sur cette période (${dateStr}). Voulez-vous le remplacer ?`,
+          confirmText: 'Remplacer',
+          cancelText: 'Annuler',
+          type: 'warning'
+        });
+        
+        if (!confirmed) return;
+        
+        // Delete the overlapping leave
+        await this.dataService.deleteConge(overlappingConge.id);
+      }
+    }
 
     // Determine initial status
     // If admin/chef creates the leave, it's auto-validated
@@ -779,11 +839,59 @@ export class CongesComponent {
     // No need to manually reload, computed signal will update automatically
     this.fermerModal();
   }
+  
+  /**
+   * Check if there's an overlapping leave for the same agent
+   */
+  private checkOverlappingConge(
+    agentId: string,
+    dateDebut: Date,
+    dateFin: Date,
+    demiJournee: string
+  ): Conge | null {
+    const agentConges = this.conges().filter(c => c.agentId === agentId);
+    
+    for (const conge of agentConges) {
+      const congeDebut = new Date(conge.dateDebut);
+      const congeFin = new Date(conge.dateFin);
+      congeDebut.setHours(0, 0, 0, 0);
+      congeFin.setHours(23, 59, 59, 999);
+      
+      const newDebut = new Date(dateDebut);
+      const newFin = new Date(dateFin);
+      newDebut.setHours(0, 0, 0, 0);
+      newFin.setHours(23, 59, 59, 999);
+      
+      // Check if dates overlap
+      const datesOverlap = newDebut <= congeFin && newFin >= congeDebut;
+      
+      if (datesOverlap) {
+        // Check demi-journee compatibility
+        // If both are full day or same half-day, it's a conflict
+        if (demiJournee === 'JOURNEE' || conge.demiJournee === 'JOURNEE') {
+          return conge; // Full day always conflicts
+        }
+        if (demiJournee === conge.demiJournee) {
+          return conge; // Same half-day conflicts
+        }
+        // Different half-days on same day don't conflict
+      }
+    }
+    
+    return null;
+  }
 
   async supprimerConge(id: string): Promise<void> {
-    if (confirm('Êtes-vous sûr de vouloir supprimer ce congé ?')) {
+    const confirmed = await this.notification.confirm({
+      title: 'Supprimer le congé',
+      message: 'Êtes-vous sûr de vouloir supprimer ce congé ?',
+      confirmText: 'Supprimer',
+      cancelText: 'Annuler',
+      type: 'danger'
+    });
+    
+    if (confirmed) {
       await this.dataService.deleteConge(id);
-      // No need to manually reload, computed signal will update automatically
     }
   }
 

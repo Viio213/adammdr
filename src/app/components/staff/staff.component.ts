@@ -2,6 +2,7 @@ import { Component, inject, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { DataService } from '../../services/data.service';
+import { NotificationService } from '../../services/notification.service';
 import { Agent, JourSemaine, DemiJournee, JOURS_SEMAINE, JOURS_TRAVAIL, TypeContrat, TYPE_CONTRAT_LABELS } from '../../models/agent.model';
 
 @Component({
@@ -277,6 +278,8 @@ export class StaffComponent {
   private dataService = inject(DataService);
   private fb = inject(FormBuilder);
 
+  private notification = inject(NotificationService);
+  
   // Use computed to reactively get agents from DataService
   agents = computed(() => this.dataService.agents());
   afficherModal = false;
@@ -351,6 +354,26 @@ export class StaffComponent {
     if (!this.agentForm.valid) return;
 
     const formValue = this.agentForm.value;
+    
+    // Check for duplicate agent name (only for new agents)
+    if (!this.agentEnEdition) {
+      const existingAgent = this.agents().find(
+        a => a.nom.toLowerCase() === formValue.nom.toLowerCase()
+      );
+      
+      if (existingAgent) {
+        const confirmed = await this.notification.confirm({
+          title: 'Agent existant',
+          message: `Un agent avec le nom "${formValue.nom}" existe déjà. Voulez-vous quand même créer cet agent ?`,
+          confirmText: 'Créer quand même',
+          cancelText: 'Annuler',
+          type: 'warning'
+        });
+        
+        if (!confirmed) return;
+      }
+    }
+    
     const disponibilites = JOURS_TRAVAIL.flatMap(jour => [
       {
         jour,
@@ -384,9 +407,16 @@ export class StaffComponent {
   }
 
   async supprimerAgent(id: string): Promise<void> {
-    if (confirm('Êtes-vous sûr de vouloir supprimer cet agent ?')) {
+    const confirmed = await this.notification.confirm({
+      title: 'Supprimer l\'agent',
+      message: 'Êtes-vous sûr de vouloir supprimer cet agent ? Cette action est irréversible.',
+      confirmText: 'Supprimer',
+      cancelText: 'Annuler',
+      type: 'danger'
+    });
+    
+    if (confirmed) {
       await this.dataService.deleteAgent(id);
-      // No need to manually reload, computed signal will update automatically
     }
   }
 
@@ -415,7 +445,12 @@ export class StaffComponent {
       .filter(d => d.disponible)
       .map(d => `${d.jour} ${d.demiJournee === 'MATIN' ? 'Matin' : 'AM'}`)
       .join('\n');
-    alert(`Disponibilités de ${agent.nom}:\n\n${dispoText || 'Aucune disponibilité'}`);
+    
+    await this.notification.alert({
+      title: `Disponibilités de ${agent.nom}`,
+      message: dispoText || 'Aucune disponibilité configurée',
+      type: 'info'
+    });
   }
 
   private generateId(): string {

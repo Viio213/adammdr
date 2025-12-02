@@ -19,7 +19,8 @@ export class DataService {
 
   // Loading states
   isLoading = signal<boolean>(true);
-  private initialized = false;
+  isInitialized = signal<boolean>(false);
+  private initPromise: Promise<void> | null = null;
   private lastPlanningId: string | null = null;
 
   constructor() {
@@ -30,7 +31,15 @@ export class DataService {
    * Initialize data from Supabase
    */
   async initializeData(): Promise<void> {
-    if (this.initialized) return;
+    // Return existing promise if already initializing
+    if (this.initPromise) return this.initPromise;
+    
+    this.initPromise = this.doInitialize();
+    return this.initPromise;
+  }
+  
+  private async doInitialize(): Promise<void> {
+    if (this.isInitialized()) return;
     
     try {
       this.isLoading.set(true);
@@ -48,14 +57,23 @@ export class DataService {
       this.historique.set(historique);
       this.conges.set(conges);
 
-      this.initialized = true;
+      this.isInitialized.set(true);
     } catch (error) {
       console.error('Error initializing data from Supabase:', error);
       // Fallback: try localStorage if Supabase fails
       this.loadFromLocalStorage();
+      this.isInitialized.set(true);
     } finally {
       this.isLoading.set(false);
     }
+  }
+  
+  /**
+   * Wait for initialization to complete
+   */
+  async waitForInit(): Promise<void> {
+    if (this.isInitialized()) return;
+    await this.initializeData();
   }
 
   /**

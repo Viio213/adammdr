@@ -11,7 +11,7 @@ import { PlanningSemaine, PlanningJour, Groupe } from '../../models/planning.mod
 import { Agent, JourSemaine, DemiJournee, JOURS_TRAVAIL } from '../../models/agent.model';
 import { HistoriqueEntry } from '../../models/historique.model';
 import { ZONES } from '../../models/zone.model';
-import { ConfirmModalComponent, ConfirmModalConfig } from '../shared/confirm-modal.component';
+import { NotificationService } from '../../services/notification.service';
 
 // Types of conflicts that can occur
 export interface ConflitGroupe {
@@ -23,7 +23,7 @@ export interface ConflitGroupe {
 @Component({
   selector: 'app-planning',
   standalone: true,
-  imports: [CommonModule, FormsModule, ConfirmModalComponent],
+  imports: [CommonModule, FormsModule],
   template: `
     <div class="page-container">
       <div class="card">
@@ -415,14 +415,6 @@ export interface ConflitGroupe {
         </ng-template>
       </div>
     </div>
-
-    <!-- Modal de confirmation -->
-    <app-confirm-modal
-      [isOpen]="showConfirmModal"
-      [config]="confirmModalConfig"
-      (confirmed)="onConfirmModalConfirm()"
-      (cancelled)="onConfirmModalCancel()">
-    </app-confirm-modal>
 
     <!-- Modal pour modifier les binômes -->
     <div class="modal-overlay" *ngIf="showBinomeModal" (click)="fermerModalBinome($event)">
@@ -1013,6 +1005,7 @@ export class PlanningComponent {
   private pdfExport = inject(PdfExportService);
   private authService = inject(AuthService);
   private statistiquesService = inject(StatistiquesService);
+  private notification = inject(NotificationService);
 
   planningActuel = signal<PlanningSemaine | null>(null);
   dateDebutSemaine = this.getLundiSemaine(new Date()).toISOString().split('T')[0];
@@ -1026,15 +1019,6 @@ export class PlanningComponent {
   dateGroupeEdition: Date | null = null;
   periodeGroupeEdition: DemiJournee | null = null;
   selectedAgents: Agent[] = [];
-  
-  // Modal de confirmation
-  showConfirmModal = false;
-  confirmModalConfig: ConfirmModalConfig = {
-    title: '',
-    message: '',
-    type: 'info'
-  };
-  private confirmModalResolver: ((value: boolean) => void) | null = null;
 
   // Use computed to reactively get agents from DataService
   allAgents = computed(() => this.dataService.agents());
@@ -1045,6 +1029,11 @@ export class PlanningComponent {
   });
 
   constructor() {
+    this.initComponent();
+  }
+  
+  private async initComponent(): Promise<void> {
+    await this.dataService.waitForInit();
     this.chargerPlanningActuel();
   }
 
@@ -1058,19 +1047,30 @@ export class PlanningComponent {
       const selectedDate = new Date(this.dateDebutSemaine);
       const dateDebut = this.getLundiSemaine(selectedDate);
       
-      // Check if a planning exists for this week and delete it explicitly
+      // Check if a planning exists for this week
       const existingPlanning = this.dataService.getPlanningByDate(dateDebut);
       if (existingPlanning) {
+        // Ask for confirmation before overwriting
+        const dateDebutStr = dateDebut.toLocaleDateString('fr-FR');
+        const confirmed = await this.notification.confirm({
+          title: 'Planning existant',
+          message: `Un planning existe déjà pour la semaine du ${dateDebutStr}. Voulez-vous le remplacer ?`,
+          confirmText: 'Remplacer',
+          cancelText: 'Annuler',
+          type: 'warning'
+        });
+        
+        if (!confirmed) return;
+        
         // Clear current planning first to force UI update
         if (this.planningActuel()?.id === existingPlanning.id) {
           this.planningActuel.set(null);
         }
         // Delete the existing planning explicitly before generating new one
-        // Note: addPlanning will also handle deletion, but we do it here to ensure it's done
         try {
-          await (this.dataService as any).deletePlanning(existingPlanning.id);
+          await this.dataService.deletePlanning(existingPlanning.id);
         } catch (deleteError) {
-          console.warn('Error deleting existing planning (will be handled by addPlanning):', deleteError);
+          console.warn('Error deleting existing planning:', deleteError);
         }
       }
       
@@ -1088,8 +1088,11 @@ export class PlanningComponent {
       this.dateDebutSemaine = dateDebut.toISOString().split('T')[0];
     } catch (error) {
       console.error('Error generating planning:', error);
-      // Show user-friendly error message
-      alert('Erreur lors de la génération du planning. Veuillez réessayer.');
+      await this.notification.alert({
+        title: 'Erreur',
+        message: 'Erreur lors de la génération du planning. Veuillez réessayer.',
+        type: 'danger'
+      });
     }
   }
 
@@ -1109,7 +1112,11 @@ export class PlanningComponent {
       this.planningActuel.set(updatedPlanning);
     } catch (error) {
       console.error('Error regenerating day:', error);
-      alert('Erreur lors de la régénération du jour. Veuillez réessayer.');
+      await this.notification.alert({
+        title: 'Erreur',
+        message: 'Erreur lors de la régénération du jour. Veuillez réessayer.',
+        type: 'danger'
+      });
     }
   }
 
@@ -1118,13 +1125,12 @@ export class PlanningComponent {
       const planning = this.planningActuel();
       if (!planning || planning.isConfirmed) return;
 
-      const confirmed = await this.showConfirm({
+      const confirmed = await this.notification.confirm({
         title: 'Confirmer le planning',
         message: 'Ce planning sera enregistré dans l\'historique et les statistiques. Cette action est définitive.',
         confirmText: 'Confirmer',
         cancelText: 'Annuler',
-        type: 'success',
-        icon: '✓'
+        type: 'success'
       });
       
       if (!confirmed) return;
@@ -1140,32 +1146,11 @@ export class PlanningComponent {
       this.planningActuel.set({ ...planning, isConfirmed: true, dateConfirmation: new Date() });
     } catch (error) {
       console.error('Error confirming planning:', error);
-      alert('Erreur lors de la confirmation du planning. Veuillez réessayer.');
-    }
-  }
-  
-  // Modal de confirmation personnalisée
-  private showConfirm(config: ConfirmModalConfig): Promise<boolean> {
-    return new Promise((resolve) => {
-      this.confirmModalConfig = config;
-      this.confirmModalResolver = resolve;
-      this.showConfirmModal = true;
-    });
-  }
-  
-  onConfirmModalConfirm(): void {
-    this.showConfirmModal = false;
-    if (this.confirmModalResolver) {
-      this.confirmModalResolver(true);
-      this.confirmModalResolver = null;
-    }
-  }
-  
-  onConfirmModalCancel(): void {
-    this.showConfirmModal = false;
-    if (this.confirmModalResolver) {
-      this.confirmModalResolver(false);
-      this.confirmModalResolver = null;
+      await this.notification.alert({
+        title: 'Erreur',
+        message: 'Erreur lors de la confirmation du planning. Veuillez réessayer.',
+        type: 'danger'
+      });
     }
   }
 
@@ -1341,7 +1326,11 @@ export class PlanningComponent {
       this.fermerModalBinome();
     } catch (error) {
       console.error('Error saving binome:', error);
-      alert('Erreur lors de la sauvegarde du binôme. Veuillez réessayer.');
+      await this.notification.alert({
+        title: 'Erreur',
+        message: 'Erreur lors de la sauvegarde du binôme. Veuillez réessayer.',
+        type: 'danger'
+      });
     }
   }
 

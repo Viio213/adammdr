@@ -1,11 +1,12 @@
 import { Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { NavigationComponent } from './components/navigation/navigation.component';
+import { GlobalModalComponent } from './components/shared/global-modal.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, NavigationComponent],
+  imports: [RouterOutlet, NavigationComponent, GlobalModalComponent],
   template: `
     <div class="app-container">
       <app-navigation></app-navigation>
@@ -20,6 +21,9 @@ import { NavigationComponent } from './components/navigation/navigation.componen
         </div>
       </footer>
     </div>
+    
+    <!-- Global notification modal -->
+    <app-global-modal></app-global-modal>
   `,
   styles: [`
     .app-container {
