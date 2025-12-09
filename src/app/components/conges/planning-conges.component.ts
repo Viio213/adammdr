@@ -74,7 +74,7 @@ interface JourPlanningConge {
                   <td class="td-date" [attr.rowspan]="2">{{ formatDate(jour.date) }}</td>
                   <td class="td-jour" [attr.rowspan]="2">{{ getJourLabel(jour.jourSemaine) }}</td>
                   <td class="td-demi-journee">
-                    <span class="demi-journee-label matin">🌅 Matin</span>
+                    <span class="demi-journee-label matin">Matin</span>
                   </td>
                   <td class="td-agents">
                     <div class="agents-list">
@@ -115,7 +115,7 @@ interface JourPlanningConge {
                 <!-- Après-midi -->
                 <tr [class.alert-row]="jour.apresMidi.alerte">
                   <td class="td-demi-journee">
-                    <span class="demi-journee-label apres-midi">🌆 Après-midi</span>
+                    <span class="demi-journee-label apres-midi">Après-midi</span>
                   </td>
                   <td class="td-agents">
                     <div class="agents-list">
