@@ -140,7 +140,7 @@ export interface ConflitGroupe {
                             *ngIf="hasGroupeConflitsMatin(groupe, jourPlanning)"
                             class="conflict-indicator"
                             [title]="getGroupeConflitsTooltipMatin(groupe, jourPlanning)">
-                            ⚠️
+                            !
                           </span>
                           <div class="binome-names">{{ getGroupeNoms(groupe) }}</div>
                           <button 

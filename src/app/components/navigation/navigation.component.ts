@@ -39,66 +39,90 @@ import { ROLE_LABELS } from '../../models/user.model';
   `,
   styles: [`
     .navbar {
-      background: #4a6fa5;
+      background: linear-gradient(135deg, #4a6fa5 0%, #5b9bd5 100%);
       padding: 0;
       position: sticky;
       top: 0;
       z-index: 1000;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
     
     .navbar .container {
-      max-width: 1400px;
+      max-width: 1600px;
       margin: 0 auto;
-      padding: 0 24px;
+      padding: 0 20px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      height: 60px;
+      height: 64px;
+      gap: 20px;
+    }
+    
+    .nav-brand {
+      flex-shrink: 0;
     }
     
     .nav-brand h1 {
       margin: 0;
-      font-size: 20px;
+      font-size: 18px;
       font-weight: 700;
       color: #fff;
       letter-spacing: 0.5px;
+      white-space: nowrap;
     }
     
     .nav-links {
       display: flex;
       list-style: none;
-      gap: 4px;
+      gap: 2px;
       margin: 0;
       padding: 0;
       height: 100%;
       align-items: center;
+      flex: 1;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    
+    .nav-links::-webkit-scrollbar {
+      display: none;
+    }
+    
+    .nav-links li {
+      flex-shrink: 0;
     }
     
     .nav-links a {
       text-decoration: none;
-      color: rgba(255,255,255,0.85);
+      color: rgba(255,255,255,0.9);
       font-weight: 500;
-      padding: 10px 18px;
+      padding: 8px 12px;
       border-radius: 6px;
       transition: all 0.2s ease;
-      font-size: 14px;
+      font-size: 13px;
+      white-space: nowrap;
+      display: inline-block;
     }
     
     .nav-links a:hover {
       color: #fff;
-      background: rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.2);
     }
     
     .nav-links a.active {
-      color: #3d5a87;
-      background: #e8f1fb;
+      color: #1e293b;
+      background: #fff;
       font-weight: 600;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     
     .nav-user {
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 12px;
+      flex-shrink: 0;
     }
 
     .user-info {
@@ -111,57 +135,83 @@ import { ROLE_LABELS } from '../../models/user.model';
     .user-name {
       color: #fff;
       font-weight: 600;
-      font-size: 14px;
+      font-size: 13px;
+      white-space: nowrap;
     }
 
     .user-role {
-      color: rgba(255,255,255,0.7);
-      font-size: 11px;
+      color: rgba(255,255,255,0.75);
+      font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
+      white-space: nowrap;
     }
 
     .btn-logout {
-      background: rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.2);
       border: 1px solid rgba(255,255,255,0.3);
       color: #fff;
-      padding: 8px 16px;
+      padding: 7px 14px;
       border-radius: 6px;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 500;
       cursor: pointer;
       transition: all 0.2s ease;
+      white-space: nowrap;
     }
 
     .btn-logout:hover {
-      background: rgba(255,255,255,0.25);
+      background: rgba(255,255,255,0.3);
       border-color: rgba(255,255,255,0.5);
+      transform: translateY(-1px);
+    }
+
+    @media (max-width: 1200px) {
+      .nav-links a {
+        padding: 8px 10px;
+        font-size: 12px;
+      }
+      
+      .user-name {
+        font-size: 12px;
+      }
+      
+      .btn-logout {
+        padding: 6px 12px;
+        font-size: 11px;
+      }
     }
 
     @media (max-width: 768px) {
       .navbar .container {
-        flex-direction: column;
+        flex-wrap: wrap;
         height: auto;
         padding: 12px 16px;
         gap: 12px;
       }
       
+      .nav-brand {
+        width: 100%;
+      }
+      
       .nav-links {
         width: 100%;
         flex-wrap: wrap;
-        justify-content: center;
+        justify-content: flex-start;
         gap: 4px;
+        max-height: none;
+        overflow: visible;
       }
       
       .nav-links a {
-        padding: 8px 14px;
-        font-size: 13px;
+        padding: 6px 10px;
+        font-size: 12px;
       }
 
       .nav-user {
         width: 100%;
         justify-content: space-between;
-        padding-top: 12px;
+        padding-top: 8px;
         border-top: 1px solid rgba(255,255,255,0.2);
       }
 
