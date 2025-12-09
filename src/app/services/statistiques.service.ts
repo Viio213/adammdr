@@ -6,8 +6,10 @@ import {
   StatistiqueAgent,
   StatistiqueVehicule,
   StatistiqueExterieur,
-  StatistiqueEcole
+  StatistiqueEcole,
+  StatistiqueChargeTravail
 } from '../models/statistiques.model';
+import { TypeConge } from '../models/conge.model';
 import { ZONES } from '../models/zone.model';
 import { DataService } from './data.service';
 
@@ -292,6 +294,179 @@ export class StatistiquesService {
    */
   getAgentExterieurPriorityScore(agentId: string): number {
     return this.getAgentExterieurPercentage(agentId);
+  }
+
+  /**
+   * Get workload statistics per agent (visible only to managers)
+   * Takes into account contract, leaves, sickness, and recovery
+   */
+  async getStatistiquesChargeTravail(): Promise<StatistiqueChargeTravail[]> {
+    const agents = await this.dataService.refreshAgents();
+    const conges = await this.dataService.refreshConges();
+    const historique = this.dataService.getHistorique();
+    
+    // Calculate date range from historique
+    const dates = historique.map(e => new Date(e.date));
+    const dateMin = dates.length > 0 ? new Date(Math.min(...dates.map(d => d.getTime()))) : new Date();
+    const dateMax = dates.length > 0 ? new Date(Math.max(...dates.map(d => d.getTime()))) : new Date();
+    
+    // Calculate total working days (Monday to Friday) in the period
+    const totalWorkingDays = this.calculateWorkingDays(dateMin, dateMax);
+    
+    const stats: StatistiqueChargeTravail[] = [];
+    
+    for (const agent of agents) {
+      if (!agent.actif) continue;
+      
+      // Calculate available days based on contract and disponibilites
+      const joursDisponiblesTotal = this.calculateAvailableDays(agent, dateMin, dateMax, totalWorkingDays);
+      
+      // Calculate worked days from historique
+      const joursTravailTotal = this.calculateWorkedDays(agent.id, historique);
+      
+      // Calculate leaves by type
+      const { joursConges, joursMaladie, joursRecup } = this.calculateLeaves(agent.id, conges, dateMin, dateMax);
+      
+      // Calculate percentages
+      const pourcentagePresence = joursDisponiblesTotal > 0 
+        ? Math.round((joursTravailTotal / joursDisponiblesTotal) * 100) 
+        : 0;
+      
+      const totalAbsence = joursConges + joursMaladie + joursRecup;
+      const pourcentageAbsence = joursDisponiblesTotal > 0 
+        ? Math.round((totalAbsence / joursDisponiblesTotal) * 100) 
+        : 0;
+      
+      stats.push({
+        agentId: agent.id,
+        agentNom: agent.nom,
+        typeContrat: agent.typeContrat || 'Non spécifié',
+        joursDisponiblesTotal,
+        joursTravailTotal,
+        joursConges,
+        joursMaladie,
+        joursRecup,
+        pourcentagePresence,
+        pourcentageAbsence
+      });
+    }
+    
+    return stats.sort((a, b) => b.pourcentagePresence - a.pourcentagePresence);
+  }
+  
+  /**
+   * Calculate total working days (Monday to Friday) in a date range
+   */
+  private calculateWorkingDays(dateMin: Date, dateMax: Date): number {
+    let count = 0;
+    const current = new Date(dateMin);
+    
+    while (current <= dateMax) {
+      const day = current.getDay();
+      // Monday = 1, Friday = 5
+      if (day >= 1 && day <= 5) {
+        count++;
+      }
+      current.setDate(current.getDate() + 1);
+    }
+    
+    return count;
+  }
+  
+  /**
+   * Calculate available days for an agent based on their disponibilites
+   */
+  private calculateAvailableDays(agent: any, dateMin: Date, dateMax: Date, totalWorkingDays: number): number {
+    if (!agent.disponibilites || agent.disponibilites.length === 0) {
+      return 0;
+    }
+    
+    // Count how many half-days the agent is available per week
+    const disponibilitesParSemaine = agent.disponibilites.filter((d: any) => d.disponible).length;
+    
+    // Calculate weeks in the period
+    const weeks = Math.ceil(totalWorkingDays / 5);
+    
+    // Convert half-days to days (2 half-days = 1 day)
+    const joursParSemaine = disponibilitesParSemaine / 2;
+    
+    return Math.round(joursParSemaine * weeks);
+  }
+  
+  /**
+   * Calculate worked days for an agent from historique
+   */
+  private calculateWorkedDays(agentId: string, historique: any[]): number {
+    const workedDates = new Set<string>();
+    
+    historique.forEach(entry => {
+      if (entry.agentIds && entry.agentIds.includes(agentId)) {
+        const dateStr = new Date(entry.date).toISOString().split('T')[0];
+        workedDates.add(dateStr);
+      }
+    });
+    
+    return workedDates.size;
+  }
+  
+  /**
+   * Calculate leaves by type for an agent
+   */
+  private calculateLeaves(agentId: string, conges: any[], dateMin: Date, dateMax: Date): {
+    joursConges: number;
+    joursMaladie: number;
+    joursRecup: number;
+  } {
+    let joursConges = 0;
+    let joursMaladie = 0;
+    let joursRecup = 0;
+    
+    conges.forEach(conge => {
+      if (conge.agentId !== agentId) return;
+      if (conge.statut !== 'VALIDE') return; // Only count validated leaves
+      
+      const debut = new Date(conge.dateDebut);
+      const fin = new Date(conge.dateFin);
+      
+      // Check if leave overlaps with the period
+      if (fin < dateMin || debut > dateMax) return;
+      
+      // Calculate days in the leave period
+      const debutEffective = debut > dateMin ? debut : dateMin;
+      const finEffective = fin < dateMax ? fin : dateMax;
+      
+      let jours = 0;
+      const current = new Date(debutEffective);
+      
+      while (current <= finEffective) {
+        const day = current.getDay();
+        // Only count weekdays
+        if (day >= 1 && day <= 5) {
+          // If it's a half-day, count as 0.5, otherwise 1
+          if (conge.demiJournee && conge.demiJournee !== 'JOURNEE') {
+            jours += 0.5;
+          } else {
+            jours += 1;
+          }
+        }
+        current.setDate(current.getDate() + 1);
+      }
+      
+      // Categorize by type
+      if (conge.type === TypeConge.CONGE_ANNUEL) {
+        joursConges += jours;
+      } else if (conge.type === TypeConge.CONGE_MALADIE) {
+        joursMaladie += jours;
+      } else if (conge.type === TypeConge.RECUPERATION) {
+        joursRecup += jours;
+      }
+    });
+    
+    return {
+      joursConges: Math.round(joursConges),
+      joursMaladie: Math.round(joursMaladie),
+      joursRecup: Math.round(joursRecup)
+    };
   }
 
   /**

@@ -9,8 +9,10 @@ import {
   StatistiqueAgent,
   StatistiqueVehicule,
   StatistiqueExterieur,
-  StatistiqueEcole
+  StatistiqueEcole,
+  StatistiqueChargeTravail
 } from '../../models/statistiques.model';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-statistiques',
@@ -289,6 +291,74 @@ import {
           </div>
         </div>
       </div>
+
+      <!-- Statistiques Charge de Travail (Managers only) -->
+      <div class="card" *ngIf="isManager()">
+        <div class="card-header">
+          <h2>Charge de travail par agent</h2>
+        </div>
+        <div class="stats-content">
+          <p class="stats-description">
+            Statistiques de présence et d'absence par agent, prenant en compte le contrat, les congés, les maladies et les récupérations
+          </p>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Agent</th>
+                  <th>Type de contrat</th>
+                  <th>Jours disponibles</th>
+                  <th>Jours travaillés</th>
+                  <th>Congés</th>
+                  <th>Maladie</th>
+                  <th>Récup</th>
+                  <th>% Présence</th>
+                  <th>% Absence</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let stat of statistiquesChargeTravail()">
+                  <td><strong>{{ stat.agentNom }}</strong></td>
+                  <td>{{ stat.typeContrat }}</td>
+                  <td>
+                    <span class="badge badge-secondary">{{ stat.joursDisponiblesTotal }}</span>
+                  </td>
+                  <td>
+                    <span class="badge badge-success">{{ stat.joursTravailTotal }}</span>
+                  </td>
+                  <td>
+                    <span class="badge badge-info" *ngIf="stat.joursConges > 0">{{ stat.joursConges }}</span>
+                    <span *ngIf="stat.joursConges === 0">-</span>
+                  </td>
+                  <td>
+                    <span class="badge badge-danger" *ngIf="stat.joursMaladie > 0">{{ stat.joursMaladie }}</span>
+                    <span *ngIf="stat.joursMaladie === 0">-</span>
+                  </td>
+                  <td>
+                    <span class="badge badge-warning" *ngIf="stat.joursRecup > 0">{{ stat.joursRecup }}</span>
+                    <span *ngIf="stat.joursRecup === 0">-</span>
+                  </td>
+                  <td>
+                    <div class="progress-bar progress-green">
+                      <div class="progress" [style.width.%]="stat.pourcentagePresence"></div>
+                      <span class="progress-text">{{ stat.pourcentagePresence }}%</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="progress-bar">
+                      <div class="progress progress-red" [style.width.%]="stat.pourcentageAbsence"></div>
+                      <span class="progress-text">{{ stat.pourcentageAbsence }}%</span>
+                    </div>
+                  </td>
+                </tr>
+                <tr *ngIf="statistiquesChargeTravail().length === 0">
+                  <td colspan="9" class="text-center">Aucune statistique disponible</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
   `,
   styles: [`
@@ -453,6 +523,25 @@ import {
       color: #475569;
     }
 
+    .badge-warning {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .badge-danger {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .badge-info {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    .progress-red {
+      background: linear-gradient(90deg, #ef4444, #f87171) !important;
+    }
+
     .partenaires-list {
       display: flex;
       flex-wrap: wrap;
@@ -543,6 +632,9 @@ export class StatistiquesComponent {
   private statistiquesService = inject(StatistiquesService);
   private pdfExport = inject(PdfExportService);
   private dataService = inject(DataService);
+  private authService = inject(AuthService);
+  
+  statistiquesChargeTravail = signal<StatistiqueChargeTravail[]>([]);
 
   // Use computed to reactively recalculate statistics when historique changes
   statistiquesBinomes = computed(() => this.statistiquesService.getStatistiquesBinomes());
@@ -555,6 +647,19 @@ export class StatistiquesComponent {
 
   constructor() {
     // Statistics will be recalculated automatically when historique changes
+    this.chargerChargeTravail();
+  }
+  
+  async chargerChargeTravail(): Promise<void> {
+    if (this.isManager()) {
+      const stats = await this.statistiquesService.getStatistiquesChargeTravail();
+      this.statistiquesChargeTravail.set(stats);
+    }
+  }
+  
+  isManager(): boolean {
+    return this.authService.hasPermission('canManageUsers') || 
+           this.authService.hasPermission('canViewStaff');
   }
 
   getTotalVehicule(): number {

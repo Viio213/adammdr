@@ -23,6 +23,7 @@ import { ROLE_LABELS } from '../../models/user.model';
           <li *ngIf="canAccessStatistiques()"><a routerLink="/statistiques" routerLinkActive="active">Statistiques</a></li>
           <li *ngIf="canAccessParametres()"><a routerLink="/parametres" routerLinkActive="active">Paramètres</a></li>
           <li *ngIf="canManageUsers()"><a routerLink="/utilisateurs" routerLinkActive="active">Utilisateurs</a></li>
+          <li><a routerLink="/mon-compte" routerLinkActive="active">Mon compte</a></li>
         </ul>
         <div class="nav-user">
           <div class="user-info">

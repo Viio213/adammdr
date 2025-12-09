@@ -5,13 +5,19 @@ import { DataService } from '../../services/data.service';
 import { Conge, TypeConge, TYPE_CONGE_LABELS, StatutConge } from '../../models/conge.model';
 import { Agent, JourSemaine, JOURS_TRAVAIL, DemiJournee } from '../../models/agent.model';
 
+interface DemiJourneePlanning {
+  demiJournee: 'MATIN' | 'APRES_MIDI';
+  agentsDisponibles: Agent[];
+  agentsEnConge: { agent: Agent; conge: Conge }[];
+  nombreAgentsTravail: number;
+  alerte: boolean; // true si moins de 4 agents
+}
+
 interface JourPlanningConge {
   date: Date;
   jourSemaine: JourSemaine;
-  agentsEnConge: { agent: Agent; conge: Conge }[];
-  agentsDisponibles: Agent[];
-  nombreAgentsTravail: number;
-  alerte: boolean; // true si moins de 4 agents
+  matin: DemiJourneePlanning;
+  apresMidi: DemiJourneePlanning;
 }
 
 @Component({
@@ -45,7 +51,7 @@ interface JourPlanningConge {
         <div class="alert-summary" *ngIf="joursAlerte().length > 0">
           <div class="alert alert-warning">
             <strong>⚠️ Attention :</strong> 
-            {{ joursAlerte().length }} jour(s) avec moins de 4 agents disponibles
+            {{ joursAlerte().length }} demi-journée(s) avec moins de 4 agents disponibles
           </div>
         </div>
 
@@ -55,54 +61,99 @@ interface JourPlanningConge {
               <tr>
                 <th class="th-date">Date</th>
                 <th class="th-jour">Jour</th>
+                <th class="th-demi-journee">Demi-journée</th>
                 <th class="th-agents">Agents disponibles</th>
                 <th class="th-conges">Agents en congé</th>
                 <th class="th-statut">Statut</th>
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let jour of joursPlanning()" [class.alert-row]="jour.alerte">
-                <td class="td-date">{{ formatDate(jour.date) }}</td>
-                <td class="td-jour">{{ getJourLabel(jour.jourSemaine) }}</td>
-                <td class="td-agents">
-                  <div class="agents-list">
-                    <span *ngFor="let agent of jour.agentsDisponibles" class="badge badge-success">
-                      {{ agent.nom }}
+              <ng-container *ngFor="let jour of joursPlanning()">
+                <!-- Matin -->
+                <tr [class.alert-row]="jour.matin.alerte">
+                  <td class="td-date" [attr.rowspan]="2">{{ formatDate(jour.date) }}</td>
+                  <td class="td-jour" [attr.rowspan]="2">{{ getJourLabel(jour.jourSemaine) }}</td>
+                  <td class="td-demi-journee">
+                    <span class="demi-journee-label matin">🌅 Matin</span>
+                  </td>
+                  <td class="td-agents">
+                    <div class="agents-list">
+                      <span *ngFor="let agent of jour.matin.agentsDisponibles" class="badge badge-success">
+                        {{ agent.nom }}
+                      </span>
+                      <span *ngIf="jour.matin.agentsDisponibles.length === 0" class="text-muted">
+                        Aucun agent disponible
+                      </span>
+                    </div>
+                    <div class="count-info">
+                      <strong>{{ jour.matin.nombreAgentsTravail }} agent(s)</strong>
+                    </div>
+                  </td>
+                  <td class="td-conges">
+                    <div *ngFor="let item of jour.matin.agentsEnConge" class="conge-item">
+                      <span class="agent-name">{{ item.agent.nom }}</span>
+                      <span class="conge-type" [class]="getCongeTypeClass(item.conge.type)">
+                        {{ getTypeCongeLabel(item.conge.type) }}
+                      </span>
+                      <span class="conge-statut" [class]="getStatutClass(item.conge.statut)">
+                        {{ getStatutLabel(item.conge.statut) }}
+                      </span>
+                    </div>
+                    <span *ngIf="jour.matin.agentsEnConge.length === 0" class="text-muted">
+                      Aucun congé
                     </span>
-                    <span *ngIf="jour.agentsDisponibles.length === 0" class="text-muted">
-                      Aucun agent disponible
+                  </td>
+                  <td class="td-statut">
+                    <span *ngIf="jour.matin.alerte" class="badge badge-danger">
+                      ⚠️ Alerte
                     </span>
-                  </div>
-                  <div class="count-info">
-                    <strong>{{ jour.nombreAgentsTravail }} agent(s)</strong>
-                  </div>
-                </td>
-                <td class="td-conges">
-                  <div *ngFor="let item of jour.agentsEnConge" class="conge-item">
-                    <span class="agent-name">{{ item.agent.nom }}</span>
-                    <span class="conge-type" [class]="getCongeTypeClass(item.conge.type)">
-                      {{ getTypeCongeLabel(item.conge.type) }}
+                    <span *ngIf="!jour.matin.alerte" class="badge badge-success">
+                      ✓ OK
                     </span>
-                    <span class="conge-statut" [class]="getStatutClass(item.conge.statut)">
-                      {{ getStatutLabel(item.conge.statut) }}
+                  </td>
+                </tr>
+                <!-- Après-midi -->
+                <tr [class.alert-row]="jour.apresMidi.alerte">
+                  <td class="td-demi-journee">
+                    <span class="demi-journee-label apres-midi">🌆 Après-midi</span>
+                  </td>
+                  <td class="td-agents">
+                    <div class="agents-list">
+                      <span *ngFor="let agent of jour.apresMidi.agentsDisponibles" class="badge badge-success">
+                        {{ agent.nom }}
+                      </span>
+                      <span *ngIf="jour.apresMidi.agentsDisponibles.length === 0" class="text-muted">
+                        Aucun agent disponible
+                      </span>
+                    </div>
+                    <div class="count-info">
+                      <strong>{{ jour.apresMidi.nombreAgentsTravail }} agent(s)</strong>
+                    </div>
+                  </td>
+                  <td class="td-conges">
+                    <div *ngFor="let item of jour.apresMidi.agentsEnConge" class="conge-item">
+                      <span class="agent-name">{{ item.agent.nom }}</span>
+                      <span class="conge-type" [class]="getCongeTypeClass(item.conge.type)">
+                        {{ getTypeCongeLabel(item.conge.type) }}
+                      </span>
+                      <span class="conge-statut" [class]="getStatutClass(item.conge.statut)">
+                        {{ getStatutLabel(item.conge.statut) }}
+                      </span>
+                    </div>
+                    <span *ngIf="jour.apresMidi.agentsEnConge.length === 0" class="text-muted">
+                      Aucun congé
                     </span>
-                    <span class="conge-duree" *ngIf="item.conge.demiJournee && item.conge.demiJournee !== 'JOURNEE'">
-                      ({{ item.conge.demiJournee === 'MATIN' ? 'Matin' : 'Après-midi' }})
+                  </td>
+                  <td class="td-statut">
+                    <span *ngIf="jour.apresMidi.alerte" class="badge badge-danger">
+                      ⚠️ Alerte
                     </span>
-                  </div>
-                  <span *ngIf="jour.agentsEnConge.length === 0" class="text-muted">
-                    Aucun congé
-                  </span>
-                </td>
-                <td class="td-statut">
-                  <span *ngIf="jour.alerte" class="badge badge-danger">
-                    ⚠️ Alerte
-                  </span>
-                  <span *ngIf="!jour.alerte" class="badge badge-success">
-                    ✓ OK
-                  </span>
-                </td>
-              </tr>
+                    <span *ngIf="!jour.apresMidi.alerte" class="badge badge-success">
+                      ✓ OK
+                    </span>
+                  </td>
+                </tr>
+              </ng-container>
             </tbody>
           </table>
         </div>
@@ -254,6 +305,28 @@ interface JourPlanningConge {
       width: 120px;
       font-weight: 600;
       color: #475569;
+    }
+
+    .th-demi-journee, .td-demi-journee {
+      width: 140px;
+    }
+
+    .demi-journee-label {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    .demi-journee-label.matin {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .demi-journee-label.apres-midi {
+      background: #dbeafe;
+      color: #1e40af;
     }
 
     .th-agents, .td-agents {
@@ -416,70 +489,97 @@ export class PlanningCongesComponent {
       date.setDate(date.getDate() + i);
       
       const jourSemaine = this.getJourSemaine(date);
-      const agentsEnConge: { agent: Agent; conge: Conge }[] = [];
-      const agentsDisponibles: Agent[] = [];
-
-      // Check each agent
-      for (const agent of agents) {
-        if (!agent.actif) continue;
-
-        // Check if agent is available on this day (at least one half-day)
-        const disponibiliteMatin = agent.disponibilites.find(
-          d => d.jour === jourSemaine && d.demiJournee === DemiJournee.MATIN && d.disponible
-        );
-        const disponibiliteApresMidi = agent.disponibilites.find(
-          d => d.jour === jourSemaine && d.demiJournee === DemiJournee.APRES_MIDI && d.disponible
-        );
-
-        if (!disponibiliteMatin && !disponibiliteApresMidi) continue;
-
-        // Check if agent is on leave (only validated leaves count)
-        const conge = conges.find(c => {
-          if (c.statut !== StatutConge.VALIDE) return false; // Only count validated leaves
-          
-          const debut = new Date(c.dateDebut);
-          debut.setHours(0, 0, 0, 0);
-          const fin = new Date(c.dateFin);
-          fin.setHours(23, 59, 59, 999);
-          const checkDate = new Date(date);
-          checkDate.setHours(12, 0, 0, 0);
-
-          if (checkDate < debut || checkDate > fin) return false;
-          if (c.agentId !== agent.id) return false;
-          
-          // Check if the leave applies to this half-day
-          if (c.demiJournee === 'JOURNEE') return true;
-          if (c.demiJournee === 'MATIN' && disponibiliteMatin) return true;
-          if (c.demiJournee === 'APRES_MIDI' && disponibiliteApresMidi) return true;
-          
-          return false;
-        });
-
-        if (conge) {
-          agentsEnConge.push({ agent, conge });
-        } else {
-          agentsDisponibles.push(agent);
-        }
-      }
-
-      const nombreAgentsTravail = agentsDisponibles.length;
-      const alerte = nombreAgentsTravail < 4;
+      
+      // Calculate for morning
+      const matin = this.calculerDemiJournee(agents, conges, jourSemaine, date, 'MATIN');
+      
+      // Calculate for afternoon
+      const apresMidi = this.calculerDemiJournee(agents, conges, jourSemaine, date, 'APRES_MIDI');
 
       jours.push({
         date: new Date(date),
         jourSemaine,
-        agentsEnConge,
-        agentsDisponibles,
-        nombreAgentsTravail,
-        alerte
+        matin,
+        apresMidi
       });
     }
 
     return jours;
   });
 
+  private calculerDemiJournee(
+    agents: Agent[],
+    conges: Conge[],
+    jourSemaine: JourSemaine,
+    date: Date,
+    demiJournee: 'MATIN' | 'APRES_MIDI'
+  ): DemiJourneePlanning {
+    const agentsEnConge: { agent: Agent; conge: Conge }[] = [];
+    const agentsDisponibles: Agent[] = [];
+    const demiJourneeEnum = demiJournee === 'MATIN' ? DemiJournee.MATIN : DemiJournee.APRES_MIDI;
+
+    // Check each agent
+    for (const agent of agents) {
+      if (!agent.actif) continue;
+
+      // Check if agent is available for this half-day
+      const disponibilite = agent.disponibilites.find(
+        d => d.jour === jourSemaine && d.demiJournee === demiJourneeEnum && d.disponible
+      );
+
+      if (!disponibilite) continue;
+
+      // Check if agent is on leave (only validated leaves count)
+      const conge = conges.find(c => {
+        if (c.statut !== StatutConge.VALIDE) return false; // Only count validated leaves
+        
+        const debut = new Date(c.dateDebut);
+        debut.setHours(0, 0, 0, 0);
+        const fin = new Date(c.dateFin);
+        fin.setHours(23, 59, 59, 999);
+        const checkDate = new Date(date);
+        checkDate.setHours(12, 0, 0, 0);
+
+        if (checkDate < debut || checkDate > fin) return false;
+        if (c.agentId !== agent.id) return false;
+        
+        // Check if the leave applies to this half-day
+        if (c.demiJournee === 'JOURNEE') return true;
+        if (c.demiJournee === demiJournee) return true;
+        
+        return false;
+      });
+
+      if (conge) {
+        agentsEnConge.push({ agent, conge });
+      } else {
+        agentsDisponibles.push(agent);
+      }
+    }
+
+    const nombreAgentsTravail = agentsDisponibles.length;
+    const alerte = nombreAgentsTravail < 4;
+
+    return {
+      demiJournee,
+      agentsDisponibles,
+      agentsEnConge,
+      nombreAgentsTravail,
+      alerte
+    };
+  }
+
   joursAlerte = computed(() => {
-    return this.joursPlanning().filter(j => j.alerte);
+    const alertes: { date: Date; demiJournee: string }[] = [];
+    for (const jour of this.joursPlanning()) {
+      if (jour.matin.alerte) {
+        alertes.push({ date: jour.date, demiJournee: 'Matin' });
+      }
+      if (jour.apresMidi.alerte) {
+        alertes.push({ date: jour.date, demiJournee: 'Après-midi' });
+      }
+    }
+    return alertes;
   });
 
   constructor() {

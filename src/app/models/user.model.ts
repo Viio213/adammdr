@@ -66,7 +66,7 @@ export const ROLE_PERMISSIONS = {
     canEditStaff: false,       // Cannot edit staff
     canViewHistorique: false,  // Cannot view historique
     canEditHistorique: false,  // Cannot edit historique
-    canViewStatistiques: false, // Cannot view statistics
+    canViewStatistiques: true, // Can view statistics
     canViewParametres: false,  // Cannot access settings
     canManageUsers: false,     // Cannot manage users
     canValidateConge: false,   // Cannot validate leave requests

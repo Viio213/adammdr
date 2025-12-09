@@ -58,4 +58,18 @@ export interface StatistiqueEcole {
   agents: { [agentName: string]: number };
 }
 
+// Workload statistics per agent (visible only to managers)
+export interface StatistiqueChargeTravail {
+  agentId: string;
+  agentNom: string;
+  typeContrat: string;
+  joursDisponiblesTotal: number;      // Total days available based on contract
+  joursTravailTotal: number;          // Total days worked (from historique)
+  joursConges: number;                // Days on leave (validated)
+  joursMaladie: number;               // Days on sick leave
+  joursRecup: number;                 // Days on recovery
+  pourcentagePresence: number;        // Percentage of presence (worked / available)
+  pourcentageAbsence: number;         // Percentage of absence (leaves / available)
+}
+
 

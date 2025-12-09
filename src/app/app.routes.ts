@@ -29,7 +29,7 @@ export const routes: Routes = [
   {
     path: 'statistiques',
     loadComponent: () => import('./components/statistiques/statistiques.component').then(m => m.StatistiquesComponent),
-    canActivate: [chefEquipeGuard]
+    canActivate: [authGuard]
   },
   {
     path: 'parametres',
@@ -50,6 +50,11 @@ export const routes: Routes = [
     path: 'utilisateurs',
     loadComponent: () => import('./components/utilisateurs/utilisateurs.component').then(m => m.UtilisateursComponent),
     canActivate: [adminGuard]
+  },
+  {
+    path: 'mon-compte',
+    loadComponent: () => import('./components/mon-compte/mon-compte.component').then(m => m.MonCompteComponent),
+    canActivate: [authGuard]
   },
   {
     path: '**',
