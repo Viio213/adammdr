@@ -57,6 +57,9 @@ interface HistoriqueJour {
             <button class="btn btn-info" (click)="imprimerPdf()">
               Imprimer
             </button>
+            <button *ngIf="canEdit" class="btn btn-warning" (click)="ouvrirModalArchivage()">
+              Archiver
+            </button>
           </div>
         </div>
 
@@ -193,7 +196,7 @@ interface HistoriqueJour {
                           </ng-container>
                           <ng-template #showEditBtn>
                             <button class="btn-edit" (click)="editerEntry(entry)" title="Modifier">
-                              ✎
+                              Modifier
                             </button>
                             <button class="btn-delete" (click)="supprimerEntry(entry.id)" title="Supprimer">
                               🗑
@@ -307,7 +310,7 @@ interface HistoriqueJour {
                           </ng-container>
                           <ng-template #showEditBtnAM>
                             <button class="btn-edit" (click)="editerEntry(entry)" title="Modifier">
-                              ✎
+                              Modifier
                             </button>
                             <button class="btn-delete" (click)="supprimerEntry(entry.id)" title="Supprimer">
                               🗑
@@ -335,6 +338,44 @@ interface HistoriqueJour {
         <div class="empty-state" *ngIf="historiqueParJour().length === 0">
           <p class="empty-title">Aucun historique disponible</p>
           <p class="empty-subtitle">Les plannings confirmés apparaîtront ici</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Archivage -->
+    <div class="modal" *ngIf="afficherModalArchivage" (click)="fermerModalArchivage($event)">
+      <div class="modal-content modal-small" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h3>Archiver l'historique</h3>
+          <button class="btn-close" (click)="fermerModalArchivage()">Fermer</button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-description">
+            Toutes les entrées d'historique jusqu'à la date sélectionnée seront archivées et supprimées de la table principale.
+          </p>
+          <div class="form-group">
+            <label class="form-label">Date de fin d'archivage *</label>
+            <input 
+              type="date" 
+              [(ngModel)]="dateFinArchivageStr" 
+              class="form-control"
+              [max]="dateMaxArchivage"
+            />
+            <small class="form-hint">
+              Les entrées jusqu'à cette date (inclusive) seront archivées
+            </small>
+          </div>
+          <div class="error-message" *ngIf="archivageError">
+            {{ archivageError }}
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" (click)="fermerModalArchivage()">
+            Annuler
+          </button>
+          <button type="button" class="btn btn-warning" (click)="confirmerArchivage()" [disabled]="!dateFinArchivageStr || isArchiving">
+            {{ isArchiving ? 'Archivage...' : 'Archiver' }}
+          </button>
         </div>
       </div>
     </div>
@@ -439,6 +480,160 @@ interface HistoriqueJour {
     .btn-info:hover {
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+    }
+
+    .btn-warning {
+      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+      color: white;
+    }
+
+    .btn-warning:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+    }
+
+    .btn-warning:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      padding: 20px;
+      animation: fadeIn 0.2s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .modal-content {
+      background: white;
+      border-radius: 16px;
+      max-width: 500px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+      animation: slideUp 0.3s ease;
+    }
+
+    .modal-small {
+      max-width: 400px;
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 24px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+
+    .modal-header h3 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 700;
+      color: #1e293b;
+    }
+
+    .btn-close {
+      background: #f1f5f9;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #64748b;
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn-close:hover {
+      background: #e2e8f0;
+      color: #1e293b;
+    }
+
+    .modal-body {
+      padding: 24px;
+    }
+
+    .modal-description {
+      color: #64748b;
+      margin: 0 0 20px 0;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #1e293b;
+      font-size: 14px;
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 14px;
+      color: #1e293b;
+      transition: all 0.2s;
+    }
+
+    .form-control:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .form-hint {
+      display: block;
+      margin-top: 6px;
+      color: #94a3b8;
+      font-size: 12px;
+    }
+
+    .error-message {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #dc2626;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      padding: 24px;
+      border-top: 2px solid #e2e8f0;
     }
     
     .historique-stats {
@@ -749,6 +944,19 @@ export class HistoriqueComponent {
   entryBackup: HistoriqueEntry | null = null;
 
   canEdit = this.authService.hasPermission('canEditHistorique');
+  
+  // Archivage
+  afficherModalArchivage = false;
+  dateFinArchivageStr?: string;
+  dateFinArchivage?: Date;
+  archivageError = '';
+  isArchiving = false;
+  
+  get dateMaxArchivage(): string {
+    const today = new Date();
+    today.setDate(today.getDate() - 1); // Yesterday max
+    return today.toISOString().split('T')[0];
+  }
 
   constructor() {
     this.initComponent();
@@ -912,5 +1120,66 @@ export class HistoriqueComponent {
       day: '2-digit', 
       month: '2-digit' 
     });
+  }
+
+  ouvrirModalArchivage(): void {
+    if (!this.canEdit) return;
+    this.afficherModalArchivage = true;
+    this.archivageError = '';
+    this.dateFinArchivageStr = undefined;
+    this.dateFinArchivage = undefined;
+  }
+
+  fermerModalArchivage(event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+    }
+    this.afficherModalArchivage = false;
+    this.archivageError = '';
+    this.dateFinArchivageStr = undefined;
+    this.dateFinArchivage = undefined;
+  }
+
+  async confirmerArchivage(): Promise<void> {
+    if (!this.dateFinArchivageStr) {
+      this.archivageError = 'Veuillez sélectionner une date de fin d\'archivage';
+      return;
+    }
+
+    const dateFin = new Date(this.dateFinArchivageStr);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (dateFin >= today) {
+      this.archivageError = 'La date de fin d\'archivage doit être antérieure à aujourd\'hui';
+      return;
+    }
+
+    // Confirmation
+    const confirmed = await this.notification.confirm({
+      title: 'Confirmer l\'archivage',
+      message: `Êtes-vous sûr de vouloir archiver toutes les entrées jusqu'au ${dateFin.toLocaleDateString('fr-FR')} ? Cette action est irréversible.`,
+      type: 'warning'
+    });
+
+    if (!confirmed) return;
+
+    this.isArchiving = true;
+    this.archivageError = '';
+
+    try {
+      const count = await this.dataService.archiverHistorique(dateFin);
+      await this.notification.alert({
+        title: 'Archivage réussi',
+        message: `${count} entrée(s) ont été archivée(s) avec succès.`,
+        type: 'success'
+      });
+      this.fermerModalArchivage();
+    } catch (error: any) {
+      this.archivageError = error?.message || 'Une erreur est survenue lors de l\'archivage';
+      console.error('Error archiving:', error);
+    } finally {
+      this.isArchiving = false;
+    }
   }
 }

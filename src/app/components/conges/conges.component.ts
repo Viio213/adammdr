@@ -136,7 +136,6 @@ import { Agent, JourSemaine, DemiJournee } from '../../models/agent.model';
 
         <!-- Pending requests alert for chef/admin -->
         <div class="pending-alert" *ngIf="canValidateConge && pendingCount() > 0">
-          <span class="pending-icon">⏳</span>
           <strong>{{ pendingCount() }} demande(s) en attente de validation</strong>
         </div>
       </div>
@@ -147,7 +146,7 @@ import { Agent, JourSemaine, DemiJournee } from '../../models/agent.model';
       <div class="modal-content" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <h3>{{ congeEnEdition ? 'Modifier' : 'Ajouter' }} un Congé</h3>
-          <button class="btn-close" (click)="fermerModal()">×</button>
+          <button class="btn-close" (click)="fermerModal()">Fermer</button>
         </div>
         <form [formGroup]="congeForm" (ngSubmit)="sauvegarderConge()">
           <!-- Agent selection -->
@@ -599,13 +598,17 @@ export class CongesComponent {
   });
 
   // Agents available for selection in dropdown
-  // Admin/Chef: all agents | Agent: only their own
+  // Admin/Chef: all active agents | Agent: only their own (if active)
   agentsSelectionnables = computed(() => {
+    // Filter only agents active on field (actif sur le terrain)
+    const activeAgents = this.agents().filter(a => a.enService);
+    
     if (this.canViewAllConges) {
-      return this.agents();
+      return activeAgents;
     }
     const agent = this.monAgent();
-    return agent ? [agent] : [];
+    // Only return agent if it's in service
+    return agent && agent.enService ? [agent] : [];
   });
 
   // Count pending requests
@@ -962,7 +965,7 @@ export class CongesComponent {
 
       // Count available agents for this day
       for (const a of agents) {
-        if (!a.actif) continue;
+        if (!a.enService) continue;
         if (a.id === agentId) continue; // Exclude the agent requesting leave
 
         // Check if agent is available on this day

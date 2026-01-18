@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, adminGuard, chefEquipeGuard } from './guards/auth.guard';
+import { authGuard, adminGuard, chefEquipeGuard, permissionGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
   {
@@ -19,7 +19,7 @@ export const routes: Routes = [
   {
     path: 'staff',
     loadComponent: () => import('./components/staff/staff.component').then(m => m.StaffComponent),
-    canActivate: [chefEquipeGuard]
+    canActivate: [authGuard] // All authenticated users except UTILISATEUR can access (checked in component)
   },
   {
     path: 'historique',
@@ -44,12 +44,17 @@ export const routes: Routes = [
   {
     path: 'planning-conges',
     loadComponent: () => import('./components/conges/planning-conges.component').then(m => m.PlanningCongesComponent),
-    canActivate: [chefEquipeGuard]
+    canActivate: [permissionGuard('canViewPlanningConges')]
   },
   {
     path: 'utilisateurs',
     loadComponent: () => import('./components/utilisateurs/utilisateurs.component').then(m => m.UtilisateursComponent),
-    canActivate: [adminGuard]
+    canActivate: [permissionGuard('canManageUsers')]
+  },
+  {
+    path: 'permissions',
+    loadComponent: () => import('./components/permissions/permissions.component').then(m => m.PermissionsComponent),
+    canActivate: [permissionGuard('canManagePermissions')]
   },
   {
     path: 'mon-compte',

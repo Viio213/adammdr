@@ -23,6 +23,7 @@ import { ROLE_LABELS } from '../../models/user.model';
           <li *ngIf="canAccessStatistiques()"><a routerLink="/statistiques" routerLinkActive="active">Statistiques</a></li>
           <li *ngIf="canAccessParametres()"><a routerLink="/parametres" routerLinkActive="active">Paramètres</a></li>
           <li *ngIf="canManageUsers()"><a routerLink="/utilisateurs" routerLinkActive="active">Utilisateurs</a></li>
+          <li *ngIf="canManagePermissions()"><a routerLink="/permissions" routerLinkActive="active">Permissions</a></li>
           <li><a routerLink="/mon-compte" routerLinkActive="active">Mon compte</a></li>
         </ul>
         <div class="nav-user">
@@ -225,7 +226,9 @@ export class NavigationComponent {
   authService = inject(AuthService);
 
   canAccessStaff(): boolean {
-    return this.authService.hasPermission('canViewStaff');
+    // All roles except UTILISATEUR (Agent) can access disponibilites
+    const user = this.authService.currentUser();
+    return user ? user.role !== 'UTILISATEUR' : false;
   }
 
   canAccessHistorique(): boolean {
@@ -244,8 +247,12 @@ export class NavigationComponent {
     return this.authService.hasPermission('canManageUsers');
   }
 
+  canManagePermissions(): boolean {
+    return this.authService.hasPermission('canManagePermissions');
+  }
+
   canViewPlanningConges(): boolean {
-    return this.authService.hasPermission('canViewStaff');
+    return this.authService.hasPermission('canViewPlanningConges');
   }
 
   getUserName(): string {

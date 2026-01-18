@@ -2,9 +2,10 @@ import { Injectable, inject } from '@angular/core';
 import { Agent, JourSemaine, DemiJournee, JOURS_TRAVAIL } from '../models/agent.model';
 import { Groupe, PlanningEntry, PlanningJour, PlanningSemaine } from '../models/planning.model';
 import { HistoriqueEntry } from '../models/historique.model';
-import { ZONES, Zone, getZonesByPriority } from '../models/zone.model';
+import { ZONES, Zone } from '../models/zone.model';
 import { DataService } from './data.service';
 import { StatistiquesService } from './statistiques.service';
+import { ZonePriorityService } from './zone-priority.service';
 
 /**
  * Planning Generator Service
@@ -21,6 +22,7 @@ import { StatistiquesService } from './statistiques.service';
 export class PlanningGeneratorService {
   private dataService = inject(DataService);
   private statistiquesService = inject(StatistiquesService);
+  private zonePriorityService = inject(ZonePriorityService);
   
   // Track pairs used in the current week generation to avoid consecutive days
   private pairsUsedByDay: Map<number, Set<string>> = new Map();
@@ -166,7 +168,7 @@ export class PlanningGeneratorService {
     previousDayPairs: Set<string> = new Set()
   ): PlanningEntry {
     // Get available agents for this half-day (considering leaves)
-    const allAgents = this.dataService.getAgents().filter(a => a.actif);
+    const allAgents = this.dataService.getAgents().filter(a => a.enService);
     let agentsDisponibles = allAgents.filter(agent =>
       this.dataService.isAgentAvailable(agent.id, date, demiJournee)
     );
@@ -204,8 +206,8 @@ export class PlanningGeneratorService {
     // Get zones already used by agents in the morning (for afternoon)
     const zonesMatin = this.getZonesMatinParAgent(entriesMemeJour);
 
-    // Available zones sorted by priority (Z2, Z3 first, then Z4, then Z1)
-    let zonesDisponibles = getZonesByPriority();
+    // Available zones sorted by priority (using ZonePriorityService)
+    let zonesDisponibles = this.zonePriorityService.getZonesByPriority();
     
     // Shuffle zones slightly to add variety (but keep priority order for first few groups)
     // Shuffle only after first 2 zones to maintain some priority
@@ -533,7 +535,7 @@ export class PlanningGeneratorService {
     const pairStats = this.statistiquesService.getStatistiquesBinomes();
     
     // Calculate ideal pair frequency for perfect balance
-    const agents = this.dataService.getAgents().filter(a => a.actif);
+    const agents = this.dataService.getAgents().filter(a => a.enService);
     const totalPairs = (agents.length * (agents.length - 1)) / 2;
     const avgFrequency = pairStats.length > 0 
       ? pairStats.reduce((sum, p) => sum + p.nombreOccurrences, 0) / Math.max(totalPairs, 1)

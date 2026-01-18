@@ -520,7 +520,7 @@ export class PlanningCongesComponent {
 
     // Check each agent
     for (const agent of agents) {
-      if (!agent.actif) continue;
+      if (!agent.enService) continue;
 
       // Check if agent is available for this half-day
       const disponibilite = agent.disponibilites.find(

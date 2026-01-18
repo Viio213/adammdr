@@ -92,6 +92,98 @@ export class ExcelExportService {
   }
 
   /**
+   * Export multiple plannings to Excel (one sheet per planning)
+   */
+  exportPlanningsToExcel(plannings: PlanningSemaine[]): void {
+    if (plannings.length === 0) return;
+
+    const wb = XLSX.utils.book_new();
+
+    plannings.forEach((planning, index) => {
+      const data: any[] = [];
+
+      // Header row
+      data.push(['JOUR', 'PÉRIODE', 'BINÔMES', 'ZONES', 'ÉCOLE', 'VÉHICULE', 'MISSION', 'RÉUNION', 'COMMENTAIRES']);
+
+      // Use the new jours structure
+      for (const jourPlanning of planning.jours) {
+        // Morning groups
+        if (jourPlanning.matin.groupes.length > 0) {
+          jourPlanning.matin.groupes.forEach((groupe, idx) => {
+            const binomes = groupe.agents.map(a => a.nom).join(' / ');
+            const zone = groupe.zoneId ? ZONES.find(z => z.id === groupe.zoneId) : null;
+            const ecole = groupe.ecoleId ? zone?.ecoles.find(e => e.id === groupe.ecoleId) : null;
+            data.push([
+              idx === 0 ? jourPlanning.jour : '',
+              idx === 0 ? 'Matin' : '',
+              binomes,
+              zone ? zone.nom : '',
+              ecole ? ecole.nom : '',
+              groupe.vehicule ? 'OUI' : 'NON',
+              groupe.mission || '',
+              groupe.reunion || '',
+              groupe.commentaires || ''
+            ]);
+          });
+        } else {
+          data.push([jourPlanning.jour, 'Matin', '(Aucun)', '', '', '', '', '', '']);
+        }
+
+        // Afternoon groups
+        if (jourPlanning.apresMidi.groupes.length > 0) {
+          jourPlanning.apresMidi.groupes.forEach((groupe, idx) => {
+            const binomes = groupe.agents.map(a => a.nom).join(' / ');
+            const zone = groupe.zoneId ? ZONES.find(z => z.id === groupe.zoneId) : null;
+            const ecole = groupe.ecoleId ? zone?.ecoles.find(e => e.id === groupe.ecoleId) : null;
+            data.push([
+              idx === 0 ? '' : '',
+              idx === 0 ? 'Après-midi' : '',
+              binomes,
+              zone ? zone.nom : '',
+              ecole ? ecole.nom : '',
+              groupe.vehicule ? 'OUI' : 'NON',
+              groupe.mission || '',
+              groupe.reunion || '',
+              groupe.commentaires || ''
+            ]);
+          });
+        } else {
+          data.push(['', 'Après-midi', '(Aucun)', '', '', '', '', '', '']);
+        }
+      }
+
+      // Create worksheet
+      const ws = XLSX.utils.aoa_to_sheet(data);
+
+      // Set column widths
+      ws['!cols'] = [
+        { wch: 12 }, // JOUR
+        { wch: 12 }, // PÉRIODE
+        { wch: 20 }, // BINÔMES
+        { wch: 15 }, // ZONES
+        { wch: 12 }, // ÉCOLE
+        { wch: 10 }, // VÉHICULE
+        { wch: 20 }, // MISSION
+        { wch: 15 }, // RÉUNION
+        { wch: 25 }  // COMMENTAIRES
+      ];
+
+      // Sheet name (limit to 31 chars for Excel)
+      const dateDebut = this.formatDateForFilename(planning.dateDebut);
+      const sheetName = `Planning_${dateDebut}`.substring(0, 31);
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    });
+
+    // Download file
+    const dateDebut = this.formatDateForFilename(plannings[0].dateDebut);
+    const dateFin = this.formatDateForFilename(plannings[plannings.length - 1].dateFin);
+    const filename = plannings.length === 1 
+      ? `Planning_${dateDebut}.xlsx`
+      : `Plannings_${dateDebut}_${dateFin}.xlsx`;
+    XLSX.writeFile(wb, filename);
+  }
+
+  /**
    * Export historique to Excel
    */
   exportHistoriqueToExcel(historique?: HistoriqueEntry[]): void {
@@ -162,7 +254,7 @@ export class ExcelExportService {
       rows.push([
         agent.nom,
         agent.typeContrat || 'TEMPS_PLEIN',
-        agent.actif ? 'Actif' : 'Inactif',
+        agent.enService ? 'En service' : 'Hors service',
         agent.indicationsSpeciales || '',
         disponibilites
       ]);
@@ -203,7 +295,7 @@ export class ExcelExportService {
       agentsData.push([
         agent.nom,
         agent.typeContrat || 'TEMPS_PLEIN',
-        agent.actif ? 'Actif' : 'Inactif',
+        agent.enService ? 'En service' : 'Hors service',
         agent.indicationsSpeciales || ''
       ]);
     });
@@ -233,7 +325,7 @@ export class ExcelExportService {
     XLSX.utils.book_append_sheet(wb, wsHistorique, 'Historique');
 
     // Download file
-    XLSX.writeFile(wb, `ADAMMDR_Export_${this.formatDateForFilename(new Date())}.xlsx`);
+    XLSX.writeFile(wb, `planner_Export_${this.formatDateForFilename(new Date())}.xlsx`);
   }
 
   private formatDate(date: Date): string {

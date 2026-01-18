@@ -89,7 +89,7 @@ import { Agent, JourSemaine, DemiJournee, Disponibilite, TypeContrat } from '../
       <div class="modal-content" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <h3>{{ utilisateurEnEdition ? 'Modifier' : 'Ajouter' }} un Utilisateur</h3>
-          <button class="btn-close" (click)="fermerModal()">×</button>
+          <button class="btn-close" (click)="fermerModal()">Fermer</button>
         </div>
         <form [formGroup]="userForm" (ngSubmit)="sauvegarderUtilisateur()">
           <div class="form-row">
@@ -122,8 +122,13 @@ import { Agent, JourSemaine, DemiJournee, Disponibilite, TypeContrat } from '../
               <label class="form-label">Rôle *</label>
               <select formControlName="role" class="form-control">
                 <option [value]="UserRole.ADMIN">{{ getRoleLabel(UserRole.ADMIN) }}</option>
+                <option [value]="UserRole.REFERENT_ADMIN">{{ getRoleLabel(UserRole.REFERENT_ADMIN) }}</option>
                 <option [value]="UserRole.CHEF_EQUIPE">{{ getRoleLabel(UserRole.CHEF_EQUIPE) }}</option>
                 <option [value]="UserRole.UTILISATEUR">{{ getRoleLabel(UserRole.UTILISATEUR) }}</option>
+                <option [value]="UserRole.COORDINATEUR">{{ getRoleLabel(UserRole.COORDINATEUR) }}</option>
+                <option [value]="UserRole.CHEF_CELLULE">{{ getRoleLabel(UserRole.CHEF_CELLULE) }}</option>
+                <option [value]="UserRole.CHEF_SERVICE">{{ getRoleLabel(UserRole.CHEF_SERVICE) }}</option>
+                <option [value]="UserRole.ADJOINT">{{ getRoleLabel(UserRole.ADJOINT) }}</option>
               </select>
             </div>
             <div class="form-group">
@@ -181,16 +186,28 @@ import { Agent, JourSemaine, DemiJournee, Disponibilite, TypeContrat } from '../
             <ul>
               <li *ngIf="userForm.value.role === UserRole.ADMIN">
                 - Accès complet à toutes les fonctionnalités<br>
-                - Gestion des utilisateurs
+                - Gestion des utilisateurs<br>
+                - ❌ Pas d'accès à la création des agents
               </li>
               <li *ngIf="userForm.value.role === UserRole.CHEF_EQUIPE">
-                - Accès au planning, staff, historique, statistiques, paramètres<br>
-                - Pas d'accès à la gestion des utilisateurs
+                - Accès complet au planning, staff, historique, statistiques, paramètres<br>
+                - Gestion des agents<br>
+                - ❌ Pas d'accès à la gestion des utilisateurs
               </li>
               <li *ngIf="userForm.value.role === UserRole.UTILISATEUR">
-                - Consultation du planning uniquement<br>
-                - Ne peut pas générer de planning<br>
-                - Pas d'accès aux autres fonctionnalités
+                - Consultation du planning (lecture seule)<br>
+                - Planning des congés (lecture)<br>
+                - Demande de congés<br>
+                - Statistiques (lecture seule)<br>
+                - ❌ Ne peut pas générer de planning
+              </li>
+              <li *ngIf="userForm.value.role === UserRole.COORDINATEUR || 
+                         userForm.value.role === UserRole.CHEF_CELLULE || 
+                         userForm.value.role === UserRole.CHEF_SERVICE || 
+                         userForm.value.role === UserRole.ADJOINT">
+                - Accès complet à toutes les fonctionnalités<br>
+                - Gestion des agents<br>
+                - Gestion des utilisateurs
               </li>
             </ul>
           </div>
@@ -212,7 +229,7 @@ import { Agent, JourSemaine, DemiJournee, Disponibilite, TypeContrat } from '../
       <div class="modal-content modal-small" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <h3>Changer le mot de passe</h3>
-          <button class="btn-close" (click)="fermerModalPassword()">×</button>
+          <button class="btn-close" (click)="fermerModalPassword()">Fermer</button>
         </div>
         <form (ngSubmit)="sauvegarderMotDePasse()">
           <p class="password-user">Utilisateur : <strong>{{ utilisateurPassword?.nom }} {{ utilisateurPassword?.prenom }}</strong></p>
@@ -587,6 +604,11 @@ export class UtilisateursComponent {
     switch (role) {
       case UserRole.ADMIN: return 'badge-admin';
       case UserRole.CHEF_EQUIPE: return 'badge-chef';
+      case UserRole.COORDINATEUR:
+      case UserRole.CHEF_CELLULE:
+      case UserRole.CHEF_SERVICE:
+      case UserRole.ADJOINT:
+        return 'badge-chef';
       default: return 'badge-user';
     }
   }
@@ -735,7 +757,7 @@ export class UtilisateursComponent {
       nomComplet: `${prenom} ${nom}`,
       typeContrat: TypeContrat.TEMPS_PLEIN,
       disponibilites: disponibilites,
-      actif: true
+      enService: true
     };
     
     await this.dataService.addAgent(newAgent);

@@ -1,9 +1,11 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DataService } from '../../services/data.service';
 import { ExcelExportService } from '../../services/excel-export.service';
 import { NotificationService } from '../../services/notification.service';
+import { ZonePriorityService } from '../../services/zone-priority.service';
+import { ZONES } from '../../models/zone.model';
 
 @Component({
   selector: 'app-parametres',
@@ -56,6 +58,36 @@ import { NotificationService } from '../../services/notification.service';
             </button>
             <button class="btn btn-danger" (click)="reinitialiserDonnees()">
               Réinitialiser toutes les données
+            </button>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3>Priorités des Zones</h3>
+          <p>Configurez l'ordre de priorité des zones lors de la génération du planning. Plus le nombre est bas, plus la priorité est élevée.</p>
+          <div class="zones-priority-list">
+            <div *ngFor="let item of zonesAvecPriorites()" class="zone-priority-item">
+              <div class="zone-info">
+                <strong>{{ item.zone.nom }}</strong>
+                <span class="zone-detail">{{ item.zone.isExterieur ? 'Extérieur' : 'Intérieur' }}</span>
+              </div>
+              <div class="priority-control">
+                <label>Priorité:</label>
+                <input 
+                  type="number" 
+                  [(ngModel)]="item.priorite" 
+                  min="1" 
+                  max="10"
+                  class="priority-input"
+                  (change)="updateZonePriority(item.zone.id, item.priorite)"
+                />
+                <span class="priority-hint">({{ getPriorityLabel(item.priorite) }})</span>
+              </div>
+            </div>
+          </div>
+          <div class="priority-actions">
+            <button class="btn btn-secondary" (click)="resetZonePriorities()">
+              Réinitialiser les priorités par défaut
             </button>
           </div>
         </div>
@@ -189,17 +221,101 @@ import { NotificationService } from '../../services/notification.service';
     .btn-warning:hover {
       background: #d97706;
     }
+
+    /* Zones Priority */
+    .zones-priority-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .zone-priority-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px;
+      background: white;
+      border-radius: 10px;
+      border: 2px solid #e2e8f0;
+      transition: all 0.2s;
+    }
+
+    .zone-priority-item:hover {
+      border-color: #4a6fa5;
+      box-shadow: 0 2px 8px rgba(74, 111, 165, 0.1);
+    }
+
+    .zone-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+    }
+
+    .zone-info strong {
+      color: #1e293b;
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .zone-detail {
+      color: #64748b;
+      font-size: 12px;
+    }
+
+    .priority-control {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .priority-control label {
+      color: #475569;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .priority-input {
+      width: 80px;
+      padding: 8px 12px;
+      border: 2px solid #e2e8f0;
+      border-radius: 6px;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .priority-input:focus {
+      outline: none;
+      border-color: #4a6fa5;
+    }
+
+    .priority-hint {
+      color: #94a3b8;
+      font-size: 12px;
+      font-style: italic;
+    }
+
+    .priority-actions {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #e2e8f0;
+    }
   `]
 })
 export class ParametresComponent {
   private dataService = inject(DataService);
   private excelExport = inject(ExcelExportService);
   private notification = inject(NotificationService);
+  private zonePriorityService = inject(ZonePriorityService);
 
   showWarning = false;
   nombreAgents = 0;
   nombreHistorique = 0;
   nombrePlannings = 0;
+  
+  // Zones avec priorités
+  zonesAvecPriorites = signal(this.zonePriorityService.getZonesWithPriorities());
 
   constructor() {
     this.chargerStatistiques();
@@ -217,7 +333,7 @@ export class ParametresComponent {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `adammdr-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `planner-backup-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -340,6 +456,30 @@ export class ParametresComponent {
     });
     
     window.location.reload();
+  }
+
+  updateZonePriority(zoneId: string, priorite: number): void {
+    this.zonePriorityService.setPriority(zoneId, priorite);
+    // Refresh the list
+    this.zonesAvecPriorites.set(this.zonePriorityService.getZonesWithPriorities());
+  }
+
+  resetZonePriorities(): void {
+    this.zonePriorityService.resetToDefaults();
+    this.zonesAvecPriorites.set(this.zonePriorityService.getZonesWithPriorities());
+    this.notification.alert({
+      title: 'Succès',
+      message: 'Les priorités ont été réinitialisées aux valeurs par défaut.',
+      type: 'success'
+    });
+  }
+
+  getPriorityLabel(priorite: number): string {
+    if (priorite === 1) return 'Priorité absolue';
+    if (priorite === 2) return 'Haute priorité';
+    if (priorite === 3) return 'Priorité moyenne';
+    if (priorite >= 4) return 'Basse priorité';
+    return 'Non définie';
   }
 }
 

@@ -1,9 +1,12 @@
 import { Component, inject, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { Router } from '@angular/router';
 import { DataService } from '../../services/data.service';
 import { NotificationService } from '../../services/notification.service';
+import { AuthService } from '../../services/auth.service';
 import { Agent, JourSemaine, DemiJournee, JOURS_SEMAINE, JOURS_TRAVAIL, TypeContrat, TYPE_CONTRAT_LABELS } from '../../models/agent.model';
+import { UserRole } from '../../models/user.model';
 
 @Component({
   selector: 'app-staff',
@@ -14,7 +17,10 @@ import { Agent, JourSemaine, DemiJournee, JOURS_SEMAINE, JOURS_TRAVAIL, TypeCont
       <div class="card">
         <div class="card-header">
           <h2>Disponibilités des Agents</h2>
-          <button class="btn btn-primary" (click)="ouvrirModalAjout()">
+          <button 
+            *ngIf="canManageAgents"
+            class="btn btn-primary" 
+            (click)="ouvrirModalAjout()">
             Ajouter un Agent
           </button>
         </div>
@@ -25,7 +31,7 @@ import { Agent, JourSemaine, DemiJournee, JOURS_SEMAINE, JOURS_TRAVAIL, TypeCont
               <tr>
                 <th>Nom</th>
                 <th>Type Contrat</th>
-                <th>Statut</th>
+                <th>En service</th>
                 <th>Indications</th>
                 <th>Disponibilités</th>
                 <th>Actions</th>
@@ -38,21 +44,31 @@ import { Agent, JourSemaine, DemiJournee, JOURS_SEMAINE, JOURS_TRAVAIL, TypeCont
                   <span class="badge badge-info">{{ getTypeContratLabel(agent.typeContrat) }}</span>
                 </td>
                 <td>
-                  <span [class]="'badge ' + (agent.actif ? 'badge-success' : 'badge-danger')">
-                    {{ agent.actif ? 'Actif' : 'Inactif' }}
+                  <span [class]="'badge ' + (agent.enService ? 'badge-success' : 'badge-danger')">
+                    {{ agent.enService ? 'En service' : 'Hors service' }}
                   </span>
                 </td>
                 <td>{{ agent.indicationsSpeciales || '-' }}</td>
                 <td>
-                  <button class="btn btn-secondary btn-sm" (click)="voirDisponibilites(agent)">
+                  <button 
+                    *ngIf="canViewDisponibilites()"
+                    class="btn btn-secondary btn-sm" 
+                    (click)="voirDisponibilites(agent)">
                     Voir
                   </button>
+                  <span *ngIf="!canViewDisponibilites()" class="text-muted">-</span>
                 </td>
                 <td>
-                  <button class="btn btn-secondary btn-sm" (click)="editerAgent(agent)">
+                  <button 
+                    *ngIf="canManageAgents"
+                    class="btn btn-secondary btn-sm" 
+                    (click)="editerAgent(agent)">
                     Modifier
                   </button>
-                  <button class="btn btn-danger btn-sm" (click)="supprimerAgent(agent.id)">
+                  <button 
+                    *ngIf="canManageAgents"
+                    class="btn btn-danger btn-sm" 
+                    (click)="supprimerAgent(agent.id)">
                     Supprimer
                   </button>
                 </td>
@@ -71,7 +87,7 @@ import { Agent, JourSemaine, DemiJournee, JOURS_SEMAINE, JOURS_TRAVAIL, TypeCont
       <div class="modal-content" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <h3>{{ agentEnEdition ? 'Modifier' : 'Ajouter' }} un Agent</h3>
-          <button class="btn-close" (click)="fermerModal()">×</button>
+          <button class="btn-close" (click)="fermerModal()">Fermer</button>
         </div>
         <form [formGroup]="agentForm" (ngSubmit)="sauvegarderAgent()">
           <div class="form-group">
@@ -89,11 +105,12 @@ import { Agent, JourSemaine, DemiJournee, JOURS_SEMAINE, JOURS_TRAVAIL, TypeCont
               </select>
             </div>
             <div class="form-group">
-              <label class="form-label">Statut</label>
-              <select formControlName="actif" class="form-control">
-                <option [ngValue]="true">Actif</option>
-                <option [ngValue]="false">Inactif</option>
+              <label class="form-label">En service</label>
+              <select formControlName="enService" class="form-control">
+                <option [ngValue]="true">En service</option>
+                <option [ngValue]="false">Hors service</option>
               </select>
+              <small class="form-hint">Les agents hors service n'apparaîtront pas dans le planning ni dans les congés</small>
             </div>
           </div>
 
@@ -277,11 +294,39 @@ import { Agent, JourSemaine, DemiJournee, JOURS_SEMAINE, JOURS_TRAVAIL, TypeCont
 export class StaffComponent {
   private dataService = inject(DataService);
   private fb = inject(FormBuilder);
-
+  private authService = inject(AuthService);
+  private router = inject(Router);
   private notification = inject(NotificationService);
+
+  canManageAgents = this.authService.hasPermission('canManageAgents');
+  
+  // Can view disponibilites: all roles except UTILISATEUR (Agent)
+  canViewDisponibilites = computed(() => {
+    const user = this.authService.currentUser();
+    return user && user.role !== UserRole.UTILISATEUR;
+  });
   
   // Use computed to reactively get agents from DataService
-  agents = computed(() => this.dataService.agents());
+  // Filter to show only real agents (exclude agents linked to non-agent users)
+  agents = computed(() => {
+    const allAgents = this.dataService.agents();
+    const allUsers = this.authService.getUsers();
+    
+    // Filter to show only agents that are:
+    // 1. Not linked to any user (standalone agents)
+    // 2. Linked to a user with UTILISATEUR role (real agents)
+    return allAgents.filter(agent => {
+      // If agent has no userId, it's a real agent
+      if (!agent.userId) return true;
+      
+      // If agent has userId, check if the user has UTILISATEUR role (agent role)
+      const linkedUser = allUsers.find(u => u.id === agent.userId);
+      if (!linkedUser) return true; // User not found, keep the agent
+      
+      // Only show agents linked to UTILISATEUR role (real agents)
+      return linkedUser.role === UserRole.UTILISATEUR;
+    });
+  });
   afficherModal = false;
   agentEnEdition: Agent | null = null;
   disponibilitesTemporaires: Map<string, boolean> = new Map();
@@ -295,11 +340,20 @@ export class StaffComponent {
     nom: ['', Validators.required],
     typeContrat: [TypeContrat.TEMPS_PLEIN],
     indicationsSpeciales: [''],
-    actif: [true]
+    enService: [true]
   });
 
   constructor() {
-    // No need to manually load, computed signal will react to changes
+    // Check permission on init - all roles except UTILISATEUR can view disponibilites
+    const user = this.authService.currentUser();
+    if (!user || user.role === UserRole.UTILISATEUR) {
+      this.router.navigate(['/planning']);
+      this.notification.alert({
+        title: 'Accès refusé',
+        message: 'Vous n\'avez pas les permissions nécessaires pour accéder à cette page.',
+        type: 'danger'
+      });
+    }
   }
 
   getTypeContratLabel(type: TypeContrat): string {
@@ -315,7 +369,7 @@ export class StaffComponent {
       this.disponibilitesTemporaires.set(`${jour}-${DemiJournee.APRES_MIDI}`, true);
     }
     this.agentForm.reset({ 
-      actif: true,
+      enService: true,
       typeContrat: TypeContrat.TEMPS_PLEIN
     });
     this.afficherModal = true;
@@ -335,7 +389,7 @@ export class StaffComponent {
       nom: agent.nom,
       typeContrat: agent.typeContrat,
       indicationsSpeciales: agent.indicationsSpeciales || '',
-      actif: agent.actif
+      enService: agent.enService
     });
     
     this.afficherModal = true;
@@ -392,7 +446,7 @@ export class StaffComponent {
       nom: formValue.nom,
       typeContrat: formValue.typeContrat,
       indicationsSpeciales: formValue.indicationsSpeciales || '',
-      actif: formValue.actif,
+      enService: formValue.enService,
       disponibilites
     };
 

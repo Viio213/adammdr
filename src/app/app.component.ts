@@ -1,7 +1,8 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { NavigationComponent } from './components/navigation/navigation.component';
 import { GlobalModalComponent } from './components/shared/global-modal.component';
+import { AutoValidationService } from './services/auto-validation.service';
 
 @Component({
   selector: 'app-root',
@@ -86,4 +87,7 @@ import { GlobalModalComponent } from './components/shared/global-modal.component
 export class AppComponent {
   title = 'SmartPlanner';
   currentYear = new Date().getFullYear();
+  
+  // Inject auto-validation service to start it
+  private autoValidation = inject(AutoValidationService);
 }

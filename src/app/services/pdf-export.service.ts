@@ -25,6 +25,29 @@ export class PdfExportService {
   }
 
   /**
+   * Export multiple plannings to PDF
+   */
+  exportPlanningsToPdf(plannings: PlanningSemaine[]): void {
+    if (plannings.length === 0) return;
+
+    if (plannings.length === 1) {
+      // Single planning: use existing method
+      this.exportPlanningToPdf(plannings[0]);
+      return;
+    }
+
+    // Multiple plannings: combine into one PDF
+    const contents = plannings.map(p => this.generatePlanningHtml(p));
+    const combinedContent = contents.join('<div style="page-break-after: always;"></div>');
+    
+    const dateDebut = this.formatDateFile(plannings[0].dateDebut);
+    const dateFin = this.formatDateFile(plannings[plannings.length - 1].dateFin);
+    const filename = `plannings-${dateDebut}_${dateFin}.pdf`;
+    
+    this.generatePdf(combinedContent, filename);
+  }
+
+  /**
    * Export historique to PDF
    */
   exportHistoriqueToPdf(historique: HistoriqueEntry[]): void {
@@ -117,7 +140,7 @@ export class PdfExportService {
       <div class="header">
         <h1>SmartPlanner - Planning de la Semaine</h1>
         <p class="subtitle">Du ${dateDebut} au ${dateFin}</p>
-        <p class="status">${planning.isConfirmed ? '✓ Planning confirmé' : '⏳ Brouillon'}</p>
+        ${planning.isConfirmed ? '<p class="status">Planning confirmé</p>' : ''}
       </div>
       <table>
         <thead>
@@ -145,7 +168,7 @@ export class PdfExportService {
             ${i === 0 ? `<td class="periode-cell matin" rowspan="${Math.max(jour.matin.groupes.length, 1)}">Matin</td>` : ''}
             <td>${groupe ? groupe.agents.map(a => a.nom).join(' / ') : '-'}</td>
             <td>${groupe?.zoneId ? this.getZoneName(groupe.zoneId) : '-'}</td>
-            <td>${groupe?.vehicule ? '✓' : '-'}</td>
+            <td>${groupe?.vehicule ? 'OUI' : 'NON'}</td>
             <td>${groupe?.mission || '-'}</td>
             <td>${groupe?.reunion || '-'}</td>
             <td>${groupe?.commentaires || '-'}</td>
@@ -161,7 +184,7 @@ export class PdfExportService {
             ${i === 0 ? `<td class="periode-cell aprem" rowspan="${Math.max(jour.apresMidi.groupes.length, 1)}">Après-midi</td>` : ''}
             <td>${groupe ? groupe.agents.map(a => a.nom).join(' / ') : '-'}</td>
             <td>${groupe?.zoneId ? this.getZoneName(groupe.zoneId) : '-'}</td>
-            <td>${groupe?.vehicule ? '✓' : '-'}</td>
+            <td>${groupe?.vehicule ? 'OUI' : 'NON'}</td>
             <td>${groupe?.mission || '-'}</td>
             <td>${groupe?.reunion || '-'}</td>
             <td>${groupe?.commentaires || '-'}</td>
@@ -213,7 +236,7 @@ export class PdfExportService {
           <td>${entry.demiJournee === 'MATIN' ? 'Matin' : 'Après-midi'}</td>
           <td><strong>${entry.binomes}</strong></td>
           <td>${entry.zoneName || '-'}</td>
-          <td>${entry.vehicule ? '✓' : '-'}</td>
+          <td>${entry.vehicule ? 'OUI' : 'NON'}</td>
           <td>${entry.mission || '-'}</td>
           <td>${entry.reunion || '-'}</td>
           <td>${entry.commentaires || '-'}</td>

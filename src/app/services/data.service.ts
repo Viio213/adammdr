@@ -335,6 +335,35 @@ export class DataService {
     return this.historique();
   }
 
+  /**
+   * Refresh historique from Supabase database
+   */
+  async refreshHistorique(): Promise<HistoriqueEntry[]> {
+    try {
+      const historique = await this.supabase.getHistorique();
+      this.historique.set(historique);
+      return historique;
+    } catch (error) {
+      console.error('Error refreshing historique from Supabase:', error);
+      return this.historique();
+    }
+  }
+
+  /**
+   * Archive historique entries up to a specific date
+   */
+  async archiverHistorique(dateFinArchivage: Date): Promise<number> {
+    try {
+      const count = await this.supabase.archiveHistorique(dateFinArchivage);
+      // Refresh historique after archiving
+      await this.refreshHistorique();
+      return count;
+    } catch (error) {
+      console.error('Error archiving historique:', error);
+      throw error;
+    }
+  }
+
   async addHistoriqueEntries(entries: HistoriqueEntry[]): Promise<void> {
     try {
       const newEntries = await this.supabase.createHistoriqueEntries(entries);
@@ -387,6 +416,17 @@ export class DataService {
     } catch (error) {
       console.error('Error refreshing conges from Supabase:', error);
       return this.conges();
+    }
+  }
+
+  async refreshPlannings(): Promise<PlanningSemaine[]> {
+    try {
+      const plannings = await this.supabase.getPlannings();
+      this.plannings.set(plannings);
+      return plannings;
+    } catch (error) {
+      console.error('Error refreshing plannings from Supabase:', error);
+      return this.plannings();
     }
   }
 
@@ -449,7 +489,7 @@ export class DataService {
   // ============================================
   isAgentAvailable(agentId: string, date: Date, demiJournee: DemiJournee): boolean {
     const agent = this.agents().find(a => a.id === agentId);
-    if (!agent || !agent.actif) return false;
+    if (!agent || !agent.enService) return false;
 
     // Check disponibilites
     const jourSemaine = this.getJourSemaine(date);

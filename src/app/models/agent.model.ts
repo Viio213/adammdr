@@ -6,7 +6,7 @@ export interface Agent {
   disponibilites: Disponibilite[];
   typeContrat: TypeContrat;
   indicationsSpeciales?: string;
-  actif: boolean;
+  enService: boolean;   // En service sur le terrain (apparaît dans planning et congés). Distinct du statut "actif" du compte utilisateur.
   userId?: string;      // Link to user account for leave management
 }
 
@@ -66,58 +66,58 @@ export const AGENTS_DEFAUT: Omit<Agent, 'id'>[] = [
   {
     nom: 'AA',
     typeContrat: TypeContrat.TEMPS_PLEIN,
-    actif: true,
+    enService: true,
     disponibilites: generateFullTimeDisponibilites()
   },
   {
     nom: 'AC',
     typeContrat: TypeContrat.TEMPS_PARTIEL,
     indicationsSpeciales: 'Pas dispo mercredi après-midi et vendredi après-midi',
-    actif: true,
+    enService: true,
     disponibilites: generateDisponibilitesAC()
   },
   {
     nom: 'BL',
     typeContrat: TypeContrat.TEMPS_PLEIN,
-    actif: true,
+    enService: true,
     disponibilites: generateFullTimeDisponibilites()
   },
   {
     nom: 'SJ',
     typeContrat: TypeContrat.TEMPS_PLEIN,
-    actif: true,
+    enService: true,
     disponibilites: generateFullTimeDisponibilites()
   },
   {
     nom: 'JG',
     typeContrat: TypeContrat.TEMPS_PLEIN,
-    actif: true,
+    enService: true,
     disponibilites: generateFullTimeDisponibilites()
   },
   {
     nom: 'DS',
     typeContrat: TypeContrat.TEMPS_PARTIEL,
     indicationsSpeciales: 'Pas dispo mardi (toute la journée) et mercredi matin',
-    actif: true,
+    enService: true,
     disponibilites: generateDisponibilitesDS()
   },
   {
     nom: 'QG',
     typeContrat: TypeContrat.MI_TEMPS,
     indicationsSpeciales: 'Mi-temps, dispo lundi, mardi et mercredi matin',
-    actif: true,
+    enService: true,
     disponibilites: generateDisponibilitesQG()
   },
   {
     nom: 'SC',
     typeContrat: TypeContrat.TEMPS_PLEIN,
-    actif: true,
+    enService: true,
     disponibilites: generateFullTimeDisponibilites()
   },
   {
     nom: 'QB',
     typeContrat: TypeContrat.TEMPS_PLEIN,
-    actif: true,
+    enService: true,
     disponibilites: generateFullTimeDisponibilites()
   }
 ];

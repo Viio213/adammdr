@@ -9,7 +9,7 @@ import {
   StatistiqueEcole,
   StatistiqueChargeTravail
 } from '../models/statistiques.model';
-import { TypeConge } from '../models/conge.model';
+import { TypeConge, StatutConge } from '../models/conge.model';
 import { ZONES } from '../models/zone.model';
 import { DataService } from './data.service';
 
@@ -20,13 +20,34 @@ export class StatistiquesService {
   private dataService = inject(DataService);
 
   /**
+   * Filter historique by date range
+   */
+  private filterHistoriqueByDateRange(historique: HistoriqueEntry[], dateDebut?: Date, dateFin?: Date): HistoriqueEntry[] {
+    if (!dateDebut && !dateFin) {
+      return historique;
+    }
+    
+    return historique.filter(entry => {
+      const entryDate = new Date(entry.date);
+      if (dateDebut && entryDate < dateDebut) return false;
+      if (dateFin) {
+        const finDate = new Date(dateFin);
+        finDate.setHours(23, 59, 59, 999); // Include the entire end date
+        if (entryDate > finDate) return false;
+      }
+      return true;
+    });
+  }
+
+  /**
    * Get statistics about agent pairs
    */
-  getStatistiquesBinomes(): StatistiqueBinome[] {
+  getStatistiquesBinomes(dateDebut?: Date, dateFin?: Date): StatistiqueBinome[] {
     const historique = this.dataService.getHistorique();
+    const filteredHistorique = this.filterHistoriqueByDateRange(historique, dateDebut, dateFin);
     const binomesMap = new Map<string, StatistiqueBinome>();
 
-    historique.forEach(entry => {
+    filteredHistorique.forEach(entry => {
       const agentIds = entry.agentIds || [];
       const agents = entry.binomes.split(',').map(a => a.trim());
       
@@ -61,8 +82,9 @@ export class StatistiquesService {
   /**
    * Get statistics about zones
    */
-  getStatistiquesZones(): StatistiqueZone[] {
+  getStatistiquesZones(dateDebut?: Date, dateFin?: Date): StatistiqueZone[] {
     const historique = this.dataService.getHistorique();
+    const filteredHistorique = this.filterHistoriqueByDateRange(historique, dateDebut, dateFin);
     const zonesMap = new Map<string, StatistiqueZone>();
 
     // Initialize all zones
@@ -76,7 +98,7 @@ export class StatistiquesService {
       });
     });
 
-    historique.forEach(entry => {
+    filteredHistorique.forEach((entry: HistoriqueEntry) => {
       if (!entry.zoneId) return;
 
       const stat = zonesMap.get(entry.zoneId);
@@ -96,8 +118,9 @@ export class StatistiquesService {
   /**
    * Get statistics about individual agents
    */
-  getStatistiquesAgents(): StatistiqueAgent[] {
+  getStatistiquesAgents(dateDebut?: Date, dateFin?: Date): StatistiqueAgent[] {
     const historique = this.dataService.getHistorique();
+    const filteredHistorique = this.filterHistoriqueByDateRange(historique, dateDebut, dateFin);
     const agents = this.dataService.getAgents();
     const agentsMap = new Map<string, StatistiqueAgent>();
 
@@ -118,7 +141,7 @@ export class StatistiquesService {
       });
     });
 
-    historique.forEach(entry => {
+    filteredHistorique.forEach(entry => {
       const agentIds = entry.agentIds || [];
       const agentNoms = entry.binomes.split(',').map(a => a.trim());
       const zone = entry.zoneId ? ZONES.find(z => z.id === entry.zoneId) : null;
@@ -174,8 +197,8 @@ export class StatistiquesService {
   /**
    * Get vehicle statistics per agent
    */
-  getStatistiquesVehicules(): StatistiqueVehicule[] {
-    const agentStats = this.getStatistiquesAgents();
+  getStatistiquesVehicules(dateDebut?: Date, dateFin?: Date): StatistiqueVehicule[] {
+    const agentStats = this.getStatistiquesAgents(dateDebut, dateFin);
     
     return agentStats.map(stat => ({
       agentId: stat.id,
@@ -191,8 +214,8 @@ export class StatistiquesService {
   /**
    * Get exterior zones statistics per agent (Zone 1 and Zone 4)
    */
-  getStatistiquesExterieur(): StatistiqueExterieur[] {
-    const agentStats = this.getStatistiquesAgents();
+  getStatistiquesExterieur(dateDebut?: Date, dateFin?: Date): StatistiqueExterieur[] {
+    const agentStats = this.getStatistiquesAgents(dateDebut, dateFin);
     
     return agentStats.map(stat => {
       const nombreInterieur = stat.nombreTotal - stat.nombreZonesExterieures;
@@ -211,8 +234,9 @@ export class StatistiquesService {
   /**
    * Get statistics about schools
    */
-  getStatistiquesEcoles(): StatistiqueEcole[] {
+  getStatistiquesEcoles(dateDebut?: Date, dateFin?: Date): StatistiqueEcole[] {
     const historique = this.dataService.getHistorique();
+    const filteredHistorique = this.filterHistoriqueByDateRange(historique, dateDebut, dateFin);
     const ecolesMap = new Map<string, StatistiqueEcole>();
 
     // Initialize all schools from zones
@@ -229,7 +253,7 @@ export class StatistiquesService {
       });
     });
 
-    historique.forEach(entry => {
+    filteredHistorique.forEach(entry => {
       if (!entry.ecoleId) return;
 
       const stat = ecolesMap.get(entry.ecoleId);
@@ -249,8 +273,8 @@ export class StatistiquesService {
   /**
    * Get most frequent pairs
    */
-  getPairesPlusFrequentes(limit: number = 10): StatistiqueBinome[] {
-    return this.getStatistiquesBinomes().slice(0, limit);
+  getPairesPlusFrequentes(limit: number = 10, dateDebut?: Date, dateFin?: Date): StatistiqueBinome[] {
+    return this.getStatistiquesBinomes(dateDebut, dateFin).slice(0, limit);
   }
 
   /**
@@ -300,15 +324,37 @@ export class StatistiquesService {
    * Get workload statistics per agent (visible only to managers)
    * Takes into account contract, leaves, sickness, and recovery
    */
-  async getStatistiquesChargeTravail(): Promise<StatistiqueChargeTravail[]> {
+  async getStatistiquesChargeTravail(dateDebut?: Date, dateFin?: Date): Promise<StatistiqueChargeTravail[]> {
     const agents = await this.dataService.refreshAgents();
     const conges = await this.dataService.refreshConges();
     const historique = this.dataService.getHistorique();
+    const filteredHistorique = this.filterHistoriqueByDateRange(historique, dateDebut, dateFin);
     
-    // Calculate date range from historique
-    const dates = historique.map(e => new Date(e.date));
-    const dateMin = dates.length > 0 ? new Date(Math.min(...dates.map(d => d.getTime()))) : new Date();
-    const dateMax = dates.length > 0 ? new Date(Math.max(...dates.map(d => d.getTime()))) : new Date();
+    // Use provided dates or calculate from historique
+    let dateMin: Date;
+    let dateMax: Date;
+    
+    if (dateDebut && dateFin) {
+      // Use provided dates
+      dateMin = new Date(dateDebut);
+      dateMax = new Date(dateFin);
+    } else {
+      // Calculate from filtered historique
+      const dates = filteredHistorique.map(e => new Date(e.date));
+      if (dates.length > 0) {
+        dateMin = new Date(Math.min(...dates.map(d => d.getTime())));
+        dateMax = new Date(Math.max(...dates.map(d => d.getTime())));
+      } else {
+        // Fallback: use current month if no historique
+        const now = new Date();
+        dateMin = new Date(now.getFullYear(), now.getMonth(), 1);
+        dateMax = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      }
+    }
+    
+    // Set time to start/end of day
+    dateMin.setHours(0, 0, 0, 0);
+    dateMax.setHours(23, 59, 59, 999);
     
     // Calculate total working days (Monday to Friday) in the period
     const totalWorkingDays = this.calculateWorkingDays(dateMin, dateMax);
@@ -316,13 +362,13 @@ export class StatistiquesService {
     const stats: StatistiqueChargeTravail[] = [];
     
     for (const agent of agents) {
-      if (!agent.actif) continue;
+      if (!agent.enService) continue;
       
       // Calculate available days based on contract and disponibilites
       const joursDisponiblesTotal = this.calculateAvailableDays(agent, dateMin, dateMax, totalWorkingDays);
       
-      // Calculate worked days from historique
-      const joursTravailTotal = this.calculateWorkedDays(agent.id, historique);
+      // Calculate worked days from filtered historique
+      const joursTravailTotal = this.calculateWorkedDays(agent.id, filteredHistorique);
       
       // Calculate leaves by type
       const { joursConges, joursMaladie, joursRecup } = this.calculateLeaves(agent.id, conges, dateMin, dateMax);
@@ -374,7 +420,7 @@ export class StatistiquesService {
   }
   
   /**
-   * Calculate available days for an agent based on their disponibilites
+   * Calculate available days for an agent based on their contract type and disponibilites
    */
   private calculateAvailableDays(agent: any, dateMin: Date, dateMax: Date, totalWorkingDays: number): number {
     if (!agent.disponibilites || agent.disponibilites.length === 0) {
@@ -388,25 +434,57 @@ export class StatistiquesService {
     const weeks = Math.ceil(totalWorkingDays / 5);
     
     // Convert half-days to days (2 half-days = 1 day)
-    const joursParSemaine = disponibilitesParSemaine / 2;
+    // This gives the actual availability based on disponibilites
+    const joursParSemaineDisponibilites = disponibilitesParSemaine / 2;
+    
+    // Also consider contract type for theoretical maximum
+    let joursParSemaineTheorique = 5; // Default: temps plein
+    if (agent.typeContrat === 'MI_TEMPS') {
+      joursParSemaineTheorique = 2.5; // Mi-temps = 50%
+    } else if (agent.typeContrat === 'TEMPS_PARTIEL') {
+      // Temps partiel: use disponibilites as the base
+      joursParSemaineTheorique = joursParSemaineDisponibilites;
+    }
+    
+    // Use the minimum between theoretical (contract) and actual (disponibilites)
+    // This ensures we don't count more days than the agent is actually available
+    const joursParSemaine = Math.min(joursParSemaineTheorique, joursParSemaineDisponibilites);
     
     return Math.round(joursParSemaine * weeks);
   }
   
   /**
    * Calculate worked days for an agent from historique
+   * Takes into account half-days: 2 half-days on the same day = 1 full day
    */
   private calculateWorkedDays(agentId: string, historique: any[]): number {
-    const workedDates = new Set<string>();
+    // Map of date -> set of half-days worked (MATIN, APRES_MIDI)
+    const workedHalfDaysByDate = new Map<string, Set<string>>();
     
     historique.forEach(entry => {
       if (entry.agentIds && entry.agentIds.includes(agentId)) {
         const dateStr = new Date(entry.date).toISOString().split('T')[0];
-        workedDates.add(dateStr);
+        if (!workedHalfDaysByDate.has(dateStr)) {
+          workedHalfDaysByDate.set(dateStr, new Set());
+        }
+        // Add the half-day to the set for this date
+        workedHalfDaysByDate.get(dateStr)!.add(entry.demiJournee || 'MATIN');
       }
     });
     
-    return workedDates.size;
+    // Calculate total days: count each date, but if both half-days are worked, count as 1 day
+    let totalDays = 0;
+    workedHalfDaysByDate.forEach((halfDays, dateStr) => {
+      // If both MATIN and APRES_MIDI are worked, it's 1 full day
+      // Otherwise, count as 0.5 day per half-day
+      if (halfDays.size === 2) {
+        totalDays += 1; // Full day
+      } else {
+        totalDays += 0.5; // Half day
+      }
+    });
+    
+    return Math.round(totalDays * 10) / 10; // Round to 1 decimal place
   }
   
   /**
@@ -423,7 +501,8 @@ export class StatistiquesService {
     
     conges.forEach(conge => {
       if (conge.agentId !== agentId) return;
-      if (conge.statut !== 'VALIDE') return; // Only count validated leaves
+      // Only count validated leaves
+      if (conge.statut !== StatutConge.VALIDE) return;
       
       const debut = new Date(conge.dateDebut);
       const fin = new Date(conge.dateFin);

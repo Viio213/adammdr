@@ -153,12 +153,36 @@ export class AuthService {
 
   /**
    * Check if current user has a specific permission
+   * Checks custom permissions first, then falls back to default permissions
    */
   hasPermission(permission: keyof typeof ROLE_PERMISSIONS[UserRole.ADMIN]): boolean {
     const user = this.currentUser();
     if (!user) return false;
+    
+    // Check custom permissions first
+    const customPerms = this.loadCustomPermissions();
+    if (customPerms[user.role] && customPerms[user.role][permission] !== undefined) {
+      return customPerms[user.role][permission];
+    }
+    
+    // Fallback to default permissions
     const permissions = ROLE_PERMISSIONS[user.role] as Record<string, boolean>;
     return permissions[permission] ?? false;
+  }
+
+  /**
+   * Load custom permissions from localStorage
+   */
+  private loadCustomPermissions(): Record<string, Record<string, boolean>> {
+    try {
+      const stored = localStorage.getItem('adammdr_custom_permissions');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (error) {
+      console.error('Error loading custom permissions:', error);
+    }
+    return {};
   }
 
   /**

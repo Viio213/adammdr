@@ -30,35 +30,51 @@ export interface ConflitGroupe {
         <div class="card-header">
           <h2>Planning de la Semaine</h2>
           <div class="header-actions">
+            <div class="view-toggle">
+              <button 
+                class="btn btn-sm" 
+                [class.btn-active]="vueMode === 'semaine'"
+                (click)="vueMode = 'semaine'">
+                Vue Semaine
+              </button>
+              <button 
+                class="btn btn-sm" 
+                [class.btn-active]="vueMode === 'mois'"
+                (click)="vueMode = 'mois'; chargerVueMensuelle()">
+                Vue Mensuelle
+              </button>
+            </div>
             <input 
-              *ngIf="canEdit"
+              *ngIf="vueMode === 'semaine'"
               type="date" 
               [(ngModel)]="dateDebutSemaine" 
               class="date-input"
+              (change)="onDateChange()"
+              title="Sélectionnez une date pour charger le planning de la semaine correspondante"
+            />
+            <input 
+              *ngIf="vueMode === 'mois'"
+              type="month" 
+              [(ngModel)]="moisSelectionne" 
+              class="date-input"
+              (change)="chargerVueMensuelle()"
             />
             <button 
-              *ngIf="canEdit"
+              *ngIf="canEdit && vueMode === 'semaine'"
               class="btn btn-primary" 
               (click)="genererPlanningHebdo()">
               Générer Planning Hebdo
             </button>
             <button 
-              *ngIf="canEdit && planningActuel() && !planningActuel()!.isConfirmed"
-              class="btn btn-success" 
-              (click)="confirmerPlanning()">
-              Confirmer le Planning
+              *ngIf="canEdit && vueMode === 'semaine'"
+              class="btn btn-primary" 
+              (click)="ouvrirModalGenerationMultiple()">
+              Générer plusieurs plannings
             </button>
             <button 
               class="btn btn-secondary" 
-              (click)="exporterExcel()" 
-              [disabled]="!planningActuel()">
-              Export Excel
-            </button>
-            <button 
-              class="btn btn-primary" 
-              (click)="exporterPdf()" 
-              [disabled]="!planningActuel()">
-              Export PDF
+              (click)="ouvrirModalExport()">
+              Exporter
             </button>
             <button 
               class="btn btn-info" 
@@ -69,7 +85,39 @@ export interface ConflitGroupe {
           </div>
         </div>
 
-        <div *ngIf="planningActuel(); else noPlanning" class="planning-container">
+        <!-- Vue Mensuelle -->
+        <div *ngIf="vueMode === 'mois'" class="vue-mensuelle-container">
+          <div class="mois-header">
+            <h3>{{ getMoisLabel() }}</h3>
+            <p class="mois-info">{{ planningsMois().length }} planning(s) trouvé(s)</p>
+          </div>
+          <div class="plannings-grid" *ngIf="planningsMois().length > 0; else noPlanningsMois">
+            <div 
+              *ngFor="let planning of planningsMois()" 
+              class="planning-card"
+              [class.confirmed]="planning.isConfirmed"
+              (click)="selectionnerPlanning(planning)">
+              <div class="planning-card-header">
+                <span class="planning-week">Semaine du {{ formatDateShort(planning.dateDebut) }}</span>
+                <span class="planning-badge" [class.badge-success]="planning.isConfirmed" [class.badge-warning]="!planning.isConfirmed">
+                  {{ planning.isConfirmed ? 'Confirmé' : 'Brouillon' }}
+                </span>
+              </div>
+              <div class="planning-card-body">
+                <p class="planning-dates">{{ formatDateShort(planning.dateDebut) }} - {{ formatDateShort(planning.dateFin) }}</p>
+                <p class="planning-info">Généré le {{ formatDateLong(planning.dateGeneration) }}</p>
+              </div>
+            </div>
+          </div>
+          <ng-template #noPlanningsMois>
+            <div class="no-planning">
+              <p>Aucun planning pour ce mois</p>
+            </div>
+          </ng-template>
+        </div>
+
+        <!-- Vue Semaine -->
+        <div *ngIf="vueMode === 'semaine' && planningActuel(); else noPlanning" class="planning-container">
           <div class="planning-info">
             <span>Semaine du</span>
             <strong>{{ formatDateShort(planningActuel()!.dateDebut) }}</strong>
@@ -140,7 +188,6 @@ export interface ConflitGroupe {
                             *ngIf="hasGroupeConflitsMatin(groupe, jourPlanning)"
                             class="conflict-indicator"
                             [title]="getGroupeConflitsTooltipMatin(groupe, jourPlanning)">
-                            !
                           </span>
                           <div class="binome-names">{{ getGroupeNoms(groupe) }}</div>
                           <button 
@@ -290,7 +337,6 @@ export interface ConflitGroupe {
                             *ngIf="hasGroupeConflitsApresMidi(groupe, jourPlanning)"
                             class="conflict-indicator"
                             [title]="getGroupeConflitsTooltipApresMidi(groupe, jourPlanning)">
-                            ⚠️
                           </span>
                           <div class="binome-names">{{ getGroupeNoms(groupe) }}</div>
                           <button 
@@ -408,7 +454,7 @@ export interface ConflitGroupe {
         </div>
 
         <ng-template #noPlanning>
-          <div class="no-planning">
+          <div class="no-planning" *ngIf="vueMode === 'semaine'">
             <p>Aucun planning généré</p>
             <span>Sélectionnez une date et cliquez sur "Générer Planning Hebdo"</span>
           </div>
@@ -421,7 +467,7 @@ export interface ConflitGroupe {
       <div class="modal-binome" (click)="$event.stopPropagation()">
         <div class="modal-binome-header">
           <h3>Modifier le groupe</h3>
-          <button class="btn-close" (click)="fermerModalBinome()">×</button>
+          <button class="btn-close" (click)="fermerModalBinome()">Fermer</button>
         </div>
         <div class="modal-binome-content">
           <p class="modal-info">Sélectionnez les agents pour ce groupe (2-3 agents) :</p>
@@ -441,7 +487,6 @@ export interface ConflitGroupe {
                 *ngIf="hasAgentConflits(agent.id)" 
                 class="conflict-warning"
                 [title]="getAgentConflitsTooltip(agent.id)">
-                ⚠️
               </span>
               <span *ngIf="!isAgentAvailable(agent.id)" class="agent-occupied">(dans autre groupe)</span>
             </label>
@@ -451,7 +496,7 @@ export interface ConflitGroupe {
           </p>
           <div class="conflict-legend" *ngIf="hasAnySelectedAgentConflict()">
             <span class="legend-item">
-              <span class="conflict-warning">⚠️</span>
+              <span class="conflict-warning"></span>
               <span>Conflit détecté (survol pour détails)</span>
             </span>
           </div>
@@ -463,6 +508,134 @@ export interface ConflitGroupe {
             [disabled]="selectedAgents.length < 2"
             (click)="sauvegarderBinome()">
             Enregistrer
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Export -->
+    <div class="modal-overlay" *ngIf="showModalExport" (click)="fermerModalExport($event)">
+      <div class="modal-content modal-export" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h3>Exporter des plannings</h3>
+          <button class="btn-close" (click)="fermerModalExport()">Fermer</button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-description">
+            Sélectionnez les plannings que vous souhaitez exporter. Seuls les plannings futurs (générés ou brouillons) sont affichés.
+          </p>
+          <div class="plannings-list">
+            <div class="plannings-header">
+              <label class="checkbox-select-all">
+                <input 
+                  type="checkbox" 
+                  [checked]="tousPlanningsSelectionnes()"
+                  (change)="toggleSelectionTous($event)"
+                />
+                <span>Tout sélectionner</span>
+              </label>
+              <span class="plannings-count">{{ planningsSelectionnables().length }} planning(s) disponible(s)</span>
+            </div>
+            <div class="plannings-items">
+              <div *ngFor="let planning of planningsSelectionnables()" class="planning-item">
+                <label class="checkbox-item">
+                  <input 
+                    type="checkbox" 
+                    [checked]="isPlanningSelectionne(planning.id)"
+                    (change)="toggleSelectionPlanning(planning.id, $event)"
+                  />
+                  <div class="planning-info">
+                    <div class="planning-dates">
+                      <strong>{{ formatDateRange(planning.dateDebut, planning.dateFin) }}</strong>
+                    </div>
+                    <div class="planning-status">
+                      <span [class]="'badge ' + (planning.isConfirmed ? 'badge-success' : 'badge-warning')">
+                        {{ planning.isConfirmed ? 'Confirmé' : 'Brouillon' }}
+                      </span>
+                      <span class="planning-date-gen">
+                        Généré le {{ formatDate(planning.dateGeneration) }}
+                      </span>
+                    </div>
+                  </div>
+                </label>
+              </div>
+              <div *ngIf="planningsSelectionnables().length === 0" class="no-plannings">
+                Aucun planning futur disponible
+              </div>
+            </div>
+          </div>
+          <div class="export-actions">
+            <button 
+              class="btn btn-secondary" 
+              (click)="exporterSelectionExcel()"
+              [disabled]="planningsSelectionnes().length === 0">
+              Exporter en Excel ({{ planningsSelectionnes().length }})
+            </button>
+            <button 
+              class="btn btn-primary" 
+              (click)="exporterSelectionPdf()"
+              [disabled]="planningsSelectionnes().length === 0">
+              Exporter en PDF ({{ planningsSelectionnes().length }})
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Génération Multiple -->
+    <div class="modal-overlay" *ngIf="showModalGenerationMultiple" (click)="fermerModalGenerationMultiple($event)">
+      <div class="modal-content modal-generation-multiple" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h3>Générer plusieurs plannings</h3>
+          <button class="btn-close" (click)="fermerModalGenerationMultiple()">Fermer</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Date de début (premier lundi)</label>
+            <input 
+              type="date" 
+              [(ngModel)]="dateDebutGeneration" 
+              class="form-control"
+              [min]="dateMinGeneration"
+            />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Date de fin (dernier lundi)</label>
+            <input 
+              type="date" 
+              [(ngModel)]="dateFinGeneration" 
+              class="form-control"
+              [min]="dateDebutGeneration"
+            />
+          </div>
+          <div class="info-box">
+            <p><strong>Information :</strong></p>
+            <p>Les plannings seront générés pour chaque semaine (du lundi au vendredi) entre les dates sélectionnées.</p>
+            <p *ngIf="nombreSemainesAGenerer() > 0" class="semaines-count">
+              <strong>{{ nombreSemainesAGenerer() }} semaine(s)</strong> seront générées.
+            </p>
+          </div>
+          <div *ngIf="isGeneratingMultiple" class="progress-container">
+            <div class="progress-info">
+              <p>Génération en cours... {{ semaineEnCours }}/{{ totalSemaines }}</p>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" [style.width.%]="(semaineEnCours / totalSemaines) * 100"></div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button 
+            class="btn btn-secondary" 
+            (click)="fermerModalGenerationMultiple()"
+            [disabled]="isGeneratingMultiple">
+            Annuler
+          </button>
+          <button 
+            class="btn btn-primary" 
+            (click)="genererPlanningsMultiple()"
+            [disabled]="!dateDebutGeneration || !dateFinGeneration || isGeneratingMultiple || nombreSemainesAGenerer() === 0">
+            Générer
           </button>
         </div>
       </div>
@@ -677,6 +850,12 @@ export interface ConflitGroupe {
       border-bottom: 1px solid #e0e0e0;
       vertical-align: middle;
       background: #fff;
+    }
+    
+    /* Make day separations more visible - only between days, not between morning and afternoon */
+    /* Apply thick border only to first morning row of each day (except first day), exclude afternoon rows */
+    tbody tr.row-first:not(:first-of-type):not(.row-aprem) td {
+      border-top: 4px solid #64748b;
     }
     
     .row-groupe:hover td:not(.td-jour):not(.td-periode) {
@@ -996,6 +1175,407 @@ export interface ConflitGroupe {
       border-top: 1px solid #e2e8f0;
       border-radius: 0 0 16px 16px;
     }
+
+    /* Modal Export */
+    .modal-export {
+      max-width: 700px;
+      max-height: 90vh;
+    }
+
+    .modal-description {
+      color: #64748b;
+      margin: 0 0 20px 0;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .plannings-list {
+      margin: 20px 0;
+      max-height: 400px;
+      overflow-y: auto;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .plannings-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 12px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .checkbox-select-all {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      color: #1e293b;
+      cursor: pointer;
+    }
+
+    .checkbox-select-all input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: #3b82f6;
+      cursor: pointer;
+    }
+
+    .plannings-count {
+      font-size: 13px;
+      color: #64748b;
+    }
+
+    .plannings-items {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .planning-item {
+      padding: 12px;
+      background: #f8fafc;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      transition: all 0.2s;
+    }
+
+    .planning-item:hover {
+      background: #f1f5f9;
+      border-color: #cbd5e1;
+    }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    .checkbox-item input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: #3b82f6;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .planning-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .planning-dates {
+      font-size: 14px;
+      color: #1e293b;
+    }
+
+    .planning-status {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+    }
+
+    .planning-date-gen {
+      color: #64748b;
+    }
+
+    .badge {
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .badge-success {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .badge-warning {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .no-plannings {
+      text-align: center;
+      padding: 40px 20px;
+      color: #94a3b8;
+      font-size: 14px;
+    }
+
+    .export-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 2px solid #e2e8f0;
+    }
+
+    .export-actions .btn {
+      flex: 1;
+    }
+
+    .export-actions .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Modal Génération Multiple */
+    .modal-content {
+      background: white;
+      border-radius: 16px;
+      max-width: 500px;
+      width: 100%;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    }
+
+    .modal-generation-multiple {
+      max-width: 500px;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 24px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+
+    .modal-header h3 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+      color: #1e293b;
+    }
+
+    .modal-body {
+      padding: 24px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #1e293b;
+      font-size: 14px;
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 10px 12px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.2s;
+      box-sizing: border-box;
+    }
+
+    .form-control:focus {
+      outline: none;
+      border-color: #3b82f6;
+    }
+
+    .info-box {
+      background: #f1f5f9;
+      border-left: 4px solid #3b82f6;
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .info-box p {
+      margin: 8px 0;
+      font-size: 14px;
+      color: #475569;
+    }
+
+    .info-box p:first-child {
+      margin-top: 0;
+    }
+
+    .info-box p:last-child {
+      margin-bottom: 0;
+    }
+
+    .semaines-count {
+      color: #1e293b !important;
+      font-weight: 600;
+    }
+
+    .progress-container {
+      margin-top: 20px;
+      padding: 16px;
+      background: #f8fafc;
+      border-radius: 8px;
+    }
+
+    .progress-info {
+      margin-bottom: 12px;
+      font-size: 14px;
+      color: #475569;
+      font-weight: 500;
+    }
+
+    .progress-info p {
+      margin: 0;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: #e2e8f0;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #3b82f6, #2563eb);
+      transition: width 0.3s ease;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      padding: 20px 24px;
+      border-top: 2px solid #e2e8f0;
+    }
+
+    .modal-footer .btn {
+      min-width: 100px;
+    }
+
+    .modal-footer .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Vue Mensuelle */
+    .view-toggle {
+      display: flex;
+      gap: 4px;
+      margin-right: 12px;
+    }
+
+    .view-toggle .btn {
+      padding: 8px 16px;
+      font-size: 13px;
+      background: #e2e8f0;
+      color: #475569;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .view-toggle .btn:hover {
+      background: #cbd5e1;
+    }
+
+    .view-toggle .btn-active {
+      background: linear-gradient(135deg, #4a6fa5 0%, #5b9bd5 100%);
+      color: #fff;
+    }
+
+    .vue-mensuelle-container {
+      padding: 20px 0;
+    }
+
+    .mois-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+
+    .mois-header h3 {
+      margin: 0 0 8px 0;
+      font-size: 24px;
+      font-weight: 700;
+      color: #1e293b;
+      text-transform: capitalize;
+    }
+
+    .mois-info {
+      margin: 0;
+      color: #64748b;
+      font-size: 14px;
+    }
+
+    .plannings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 20px;
+    }
+
+    .planning-card {
+      background: #fff;
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 20px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .planning-card:hover {
+      border-color: #4a6fa5;
+      box-shadow: 0 4px 12px rgba(74, 111, 165, 0.15);
+      transform: translateY(-2px);
+    }
+
+    .planning-card.confirmed {
+      border-color: #10b981;
+      background: #f0fdf4;
+    }
+
+    .planning-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .planning-week {
+      font-weight: 600;
+      color: #1e293b;
+      font-size: 16px;
+    }
+
+    .planning-badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .planning-card-body {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .planning-dates {
+      margin: 0;
+      color: #475569;
+      font-size: 14px;
+    }
+
+    .planning-info {
+      margin: 0;
+      color: #94a3b8;
+      font-size: 12px;
+    }
   `]
 })
 export class PlanningComponent {
@@ -1010,6 +1590,11 @@ export class PlanningComponent {
   planningActuel = signal<PlanningSemaine | null>(null);
   dateDebutSemaine = this.getLundiSemaine(new Date()).toISOString().split('T')[0];
   
+  // Vue mensuelle
+  vueMode: 'semaine' | 'mois' = 'semaine';
+  moisSelectionne = new Date().toISOString().slice(0, 7); // Format YYYY-MM
+  planningsMois = signal<PlanningSemaine[]>([]);
+  
   zones = ZONES;
   canEdit = this.authService.hasPermission('canGeneratePlanning');
 
@@ -1020,12 +1605,49 @@ export class PlanningComponent {
   periodeGroupeEdition: DemiJournee | null = null;
   selectedAgents: Agent[] = [];
 
+  // Modal export
+  showModalExport = false;
+  planningsSelectionnesIds = signal<Set<string>>(new Set());
+
+  // Computed: plannings sélectionnables (futurs uniquement)
+  planningsSelectionnables = computed(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return this.dataService.getPlannings().filter(p => {
+      const dateDebut = new Date(p.dateDebut);
+      dateDebut.setHours(0, 0, 0, 0);
+      return dateDebut >= today;
+    }).sort((a, b) => {
+      return new Date(a.dateDebut).getTime() - new Date(b.dateDebut).getTime();
+    });
+  });
+
+  planningsSelectionnes = computed(() => {
+    const selectedIds = this.planningsSelectionnesIds();
+    return this.planningsSelectionnables().filter(p => selectedIds.has(p.id));
+  });
+
+  tousPlanningsSelectionnes = computed(() => {
+    const selectionnables = this.planningsSelectionnables();
+    const selectionnes = this.planningsSelectionnesIds();
+    return selectionnables.length > 0 && selectionnables.every(p => selectionnes.has(p.id));
+  });
+
+  // Modal génération multiple
+  showModalGenerationMultiple = false;
+  dateDebutGeneration = '';
+  dateFinGeneration = '';
+  isGeneratingMultiple = false;
+  semaineEnCours = 0;
+  totalSemaines = 0;
+  dateMinGeneration = this.getLundiSemaine(new Date()).toISOString().split('T')[0];
+
   // Use computed to reactively get agents from DataService
   allAgents = computed(() => this.dataService.agents());
 
   // Computed: agents disponibles pour la période
   agentsDisponibles = computed(() => {
-    return this.allAgents().filter((a: Agent) => a.actif);
+    return this.allAgents().filter((a: Agent) => a.enService);
   });
 
   constructor() {
@@ -1154,6 +1776,30 @@ export class PlanningComponent {
     }
   }
 
+  onDateChange(): void {
+    // When date changes, load the planning for that week
+    this.chargerPlanningPourDate();
+  }
+
+  chargerPlanningPourDate(): void {
+    if (!this.dateDebutSemaine) return;
+    
+    const selectedDate = new Date(this.dateDebutSemaine);
+    const dateDebut = this.getLundiSemaine(selectedDate);
+    
+    // Try to find existing planning for this date
+    const planning = this.dataService.getPlanningByDate(dateDebut);
+    
+    if (planning) {
+      this.planningActuel.set(planning);
+      // Update last viewed planning ID
+      localStorage.setItem('adammdr_last_planning_id', planning.id);
+    } else {
+      // No planning found for this date
+      this.planningActuel.set(null);
+    }
+  }
+
   chargerPlanningActuel(): void {
     const planning = this.dataService.getPlanningActuel();
     if (planning) {
@@ -1247,11 +1893,211 @@ export class PlanningComponent {
     });
   }
 
-  private getLundiSemaine(date: Date): Date {
+  formatDateLong(date: Date): string {
+    return new Date(date).toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
+  getMoisLabel(): string {
+    const [year, month] = this.moisSelectionne.split('-');
+    const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+    return date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  }
+
+  chargerVueMensuelle(): void {
+    const [year, month] = this.moisSelectionne.split('-');
+    const dateDebutMois = new Date(parseInt(year), parseInt(month) - 1, 1);
+    const dateFinMois = new Date(parseInt(year), parseInt(month), 0); // Dernier jour du mois
+    
+    const allPlannings = this.dataService.getPlannings();
+    const planningsDuMois = allPlannings.filter(p => {
+      const dateDebut = new Date(p.dateDebut);
+      return dateDebut >= dateDebutMois && dateDebut <= dateFinMois;
+    });
+    
+    // Trier par date de début (plus récent en premier)
+    planningsDuMois.sort((a, b) => 
+      new Date(b.dateDebut).getTime() - new Date(a.dateDebut).getTime()
+    );
+    
+    this.planningsMois.set(planningsDuMois);
+  }
+
+  selectionnerPlanning(planning: PlanningSemaine): void {
+    this.planningActuel.set(planning);
+    this.vueMode = 'semaine';
+    this.dateDebutSemaine = planning.dateDebut.toISOString().split('T')[0];
+  }
+
+  getLundiSemaine(date: Date): Date {
     const d = new Date(date);
     const day = d.getDay();
     const diff = d.getDate() - day + (day === 0 ? -6 : 1);
     return new Date(d.setDate(diff));
+  }
+
+  // Calculer le nombre de semaines à générer
+  nombreSemainesAGenerer(): number {
+    if (!this.dateDebutGeneration || !this.dateFinGeneration) return 0;
+    
+    const debut = this.getLundiSemaine(new Date(this.dateDebutGeneration));
+    const fin = this.getLundiSemaine(new Date(this.dateFinGeneration));
+    
+    if (fin < debut) return 0;
+    
+    const diffTime = fin.getTime() - debut.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const semaines = Math.floor(diffDays / 7) + 1;
+    
+    return semaines;
+  }
+
+  // Ouvrir le modal de génération multiple
+  ouvrirModalGenerationMultiple(): void {
+    const prochainLundi = this.getLundiSemaine(new Date());
+    this.dateDebutGeneration = prochainLundi.toISOString().split('T')[0];
+    
+    // Par défaut, 5 semaines
+    const dateFin = new Date(prochainLundi);
+    dateFin.setDate(dateFin.getDate() + (4 * 7)); // 5 semaines = 4 semaines après
+    this.dateFinGeneration = this.getLundiSemaine(dateFin).toISOString().split('T')[0];
+    
+    this.showModalGenerationMultiple = true;
+  }
+
+  // Fermer le modal
+  fermerModalGenerationMultiple(event?: Event): void {
+    if (!event || (event.target as HTMLElement).classList.contains('modal-overlay')) {
+      if (!this.isGeneratingMultiple) {
+        this.showModalGenerationMultiple = false;
+        this.dateDebutGeneration = '';
+        this.dateFinGeneration = '';
+      }
+    }
+  }
+
+  // Générer plusieurs plannings
+  async genererPlanningsMultiple(): Promise<void> {
+    if (!this.dateDebutGeneration || !this.dateFinGeneration) return;
+    
+    const debut = this.getLundiSemaine(new Date(this.dateDebutGeneration));
+    const fin = this.getLundiSemaine(new Date(this.dateFinGeneration));
+    
+    if (fin < debut) {
+      await this.notification.alert({
+        title: 'Erreur',
+        message: 'La date de fin doit être supérieure à la date de début.',
+        type: 'danger'
+      });
+      return;
+    }
+    
+    // Calculer toutes les semaines à générer
+    const semaines: Date[] = [];
+    let currentDate = new Date(debut);
+    
+    while (currentDate <= fin) {
+      semaines.push(new Date(currentDate));
+      currentDate.setDate(currentDate.getDate() + 7); // Semaine suivante
+    }
+    
+    if (semaines.length === 0) {
+      await this.notification.alert({
+        title: 'Erreur',
+        message: 'Aucune semaine à générer.',
+        type: 'danger'
+      });
+      return;
+    }
+    
+    // Confirmation
+    const confirmed = await this.notification.confirm({
+      title: 'Génération multiple',
+      message: `Vous allez générer ${semaines.length} planning(s). Les plannings existants pour ces semaines seront remplacés. Continuer ?`,
+      confirmText: 'Générer',
+      cancelText: 'Annuler',
+      type: 'info'
+    });
+    
+    if (!confirmed) return;
+    
+    // Rafraîchir les données une seule fois avant la génération
+    await this.dataService.refreshAgents();
+    await this.dataService.refreshConges();
+    
+    // Générer les plannings
+    this.isGeneratingMultiple = true;
+    this.totalSemaines = semaines.length;
+    this.semaineEnCours = 0;
+    
+    const planningsGeneres: PlanningSemaine[] = [];
+    const erreurs: { semaine: string; erreur: string }[] = [];
+    
+    for (let i = 0; i < semaines.length; i++) {
+      this.semaineEnCours = i + 1;
+      const dateLundi = semaines[i];
+      
+      try {
+        // Vérifier si un planning existe déjà
+        const existingPlanning = this.dataService.getPlanningByDate(dateLundi);
+        if (existingPlanning) {
+          // Supprimer l'ancien planning
+          try {
+            await this.dataService.deletePlanning(existingPlanning.id);
+          } catch (deleteError) {
+            console.warn(`Error deleting existing planning for ${dateLundi.toLocaleDateString('fr-FR')}:`, deleteError);
+          }
+        }
+        
+        // Générer le nouveau planning
+        const planning = this.planningGenerator.generatePlanningSemaine(dateLundi);
+        const createdPlanning = await this.dataService.addPlanning(planning);
+        planningsGeneres.push(createdPlanning);
+        
+        // Petit délai pour éviter de surcharger la base de données
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+      } catch (error) {
+        console.error(`Error generating planning for ${dateLundi.toLocaleDateString('fr-FR')}:`, error);
+        erreurs.push({
+          semaine: dateLundi.toLocaleDateString('fr-FR'),
+          erreur: error instanceof Error ? error.message : 'Erreur inconnue'
+        });
+      }
+    }
+    
+    this.isGeneratingMultiple = false;
+    
+    // Afficher le résultat
+    if (erreurs.length === 0) {
+      await this.notification.alert({
+        title: 'Succès',
+        message: `${planningsGeneres.length} planning(s) généré(s) avec succès.`,
+        type: 'success'
+      });
+      
+      // Charger le premier planning généré
+      if (planningsGeneres.length > 0) {
+        this.planningActuel.set(planningsGeneres[0]);
+        this.dateDebutSemaine = planningsGeneres[0].dateDebut.toISOString().split('T')[0];
+      }
+    } else {
+      await this.notification.alert({
+        title: 'Génération partielle',
+        message: `${planningsGeneres.length} planning(s) généré(s), ${erreurs.length} erreur(s).`,
+        type: 'warning'
+      });
+    }
+    
+    // Fermer le modal
+    this.showModalGenerationMultiple = false;
+    this.dateDebutGeneration = '';
+    this.dateFinGeneration = '';
   }
 
   // Modal binômes methods
@@ -1580,6 +2426,70 @@ export class PlanningComponent {
    */
   hasAnySelectedAgentConflict(): boolean {
     return this.selectedAgents.some((a: Agent) => this.hasAgentConflits(a.id));
+  }
+
+  ouvrirModalExport(): void {
+    this.showModalExport = true;
+    // Reset selection
+    this.planningsSelectionnesIds.set(new Set());
+  }
+
+  fermerModalExport(event?: Event): void {
+    if (!event || (event.target as HTMLElement).classList.contains('modal-overlay')) {
+      this.showModalExport = false;
+      this.planningsSelectionnesIds.set(new Set());
+    }
+  }
+
+  toggleSelectionTous(event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    if (checked) {
+      const allIds = new Set(this.planningsSelectionnables().map(p => p.id));
+      this.planningsSelectionnesIds.set(allIds);
+    } else {
+      this.planningsSelectionnesIds.set(new Set());
+    }
+  }
+
+  toggleSelectionPlanning(planningId: string, event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    const current = new Set(this.planningsSelectionnesIds());
+    if (checked) {
+      current.add(planningId);
+    } else {
+      current.delete(planningId);
+    }
+    this.planningsSelectionnesIds.set(current);
+  }
+
+  isPlanningSelectionne(planningId: string): boolean {
+    return this.planningsSelectionnesIds().has(planningId);
+  }
+
+  exporterSelectionExcel(): void {
+    const plannings = this.planningsSelectionnes();
+    if (plannings.length === 0) return;
+    
+    this.excelExport.exportPlanningsToExcel(plannings);
+    this.fermerModalExport();
+  }
+
+  exporterSelectionPdf(): void {
+    const plannings = this.planningsSelectionnes();
+    if (plannings.length === 0) return;
+    
+    this.pdfExport.exportPlanningsToPdf(plannings);
+    this.fermerModalExport();
+  }
+
+  formatDateRange(dateDebut: Date, dateFin: Date): string {
+    const debut = new Date(dateDebut).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+    const fin = new Date(dateFin).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    return `${debut} - ${fin}`;
+  }
+
+  formatDate(date: Date): string {
+    return new Date(date).toLocaleDateString('fr-FR');
   }
 }
 

@@ -112,7 +112,7 @@ export class SupabaseService {
         nom_complet: agent.nomComplet,
         type_contrat: agent.typeContrat,
         indications_speciales: agent.indicationsSpeciales,
-        actif: agent.actif ?? true,
+        en_service: agent.enService ?? true,
         user_id: agent.userId
       }])
       .select()
@@ -147,7 +147,7 @@ export class SupabaseService {
         nom_complet: agent.nomComplet,
         type_contrat: agent.typeContrat,
         indications_speciales: agent.indicationsSpeciales,
-        actif: agent.actif,
+        en_service: agent.enService,
         user_id: agent.userId,
         updated_at: new Date().toISOString()
       })
@@ -279,6 +279,51 @@ export class SupabaseService {
     if (error) throw error;
   }
 
+  /**
+   * Archive historique entries up to a specific date
+   * Moves entries from historique to historique_archives and deletes them from historique
+   */
+  async archiveHistorique(dateFinArchivage: Date): Promise<number> {
+    const dateFinStr = dateFinArchivage.toISOString().split('T')[0];
+    
+    // Get all entries to archive (date <= dateFinArchivage)
+    const { data: entriesToArchive, error: selectError } = await this.supabase
+      .from('historique')
+      .select('*')
+      .lte('date', dateFinStr);
+    
+    if (selectError) throw selectError;
+    
+    if (!entriesToArchive || entriesToArchive.length === 0) {
+      return 0;
+    }
+    
+    // Map entries to archive format (add date_archivage and archived_at)
+    const archiveEntries = entriesToArchive.map(entry => ({
+      ...this.mapHistoriqueToDb(this.mapHistoriqueFromDb(entry)),
+      date_archivage: dateFinStr,
+      archived_at: new Date().toISOString(),
+      created_at: entry.created_at || new Date().toISOString()
+    }));
+    
+    // Insert into archives table
+    const { error: insertError } = await this.supabase
+      .from('historique_archives')
+      .insert(archiveEntries);
+    
+    if (insertError) throw insertError;
+    
+    // Delete from historique table
+    const { error: deleteError } = await this.supabase
+      .from('historique')
+      .delete()
+      .lte('date', dateFinStr);
+    
+    if (deleteError) throw deleteError;
+    
+    return entriesToArchive.length;
+  }
+
   // ============================================
   // CONGES
   // ============================================
@@ -365,7 +410,7 @@ export class SupabaseService {
       nomComplet: data.nom_complet,
       typeContrat: data.type_contrat,
       indicationsSpeciales: data.indications_speciales,
-      actif: data.actif,
+      enService: data.en_service ?? data.actif ?? true, // Support both old and new column names
       userId: data.user_id,
       disponibilites: (data.disponibilites || []).map((d: any) => ({
         jour: d.jour,

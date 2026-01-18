@@ -1,5 +1,6 @@
 import { Component, inject, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { StatistiquesService } from '../../services/statistiques.service';
 import { PdfExportService } from '../../services/pdf-export.service';
 import { DataService } from '../../services/data.service';
@@ -13,11 +14,12 @@ import {
   StatistiqueChargeTravail
 } from '../../models/statistiques.model';
 import { AuthService } from '../../services/auth.service';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-statistiques',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   template: `
     <div class="container">
       <!-- Header with export buttons -->
@@ -26,6 +28,29 @@ import { AuthService } from '../../services/auth.service';
         <div class="header-actions">
           <button class="btn btn-primary" (click)="exporterPdf()">Export PDF</button>
           <button class="btn btn-info" (click)="imprimerPdf()">Imprimer</button>
+          <button *ngIf="canArchive" class="btn btn-warning" (click)="ouvrirModalArchivage()">
+            Archiver
+          </button>
+        </div>
+      </div>
+
+      <!-- Date range selector -->
+      <div class="date-range-selector">
+        <div class="date-range-controls">
+          <label class="checkbox-label">
+            <input type="checkbox" [(ngModel)]="voirTout" (change)="onVoirToutChange()" />
+            <span>Voir tout</span>
+          </label>
+          <div class="date-inputs" *ngIf="!voirTout">
+            <div class="date-input-group">
+              <label>Du</label>
+              <input type="date" [ngModel]="dateDebutStr" (ngModelChange)="onDateDebutChange($event)" />
+            </div>
+            <div class="date-input-group">
+              <label>Au</label>
+              <input type="date" [ngModel]="dateFinStr" (ngModelChange)="onDateFinChange($event)" />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -360,6 +385,44 @@ import { AuthService } from '../../services/auth.service';
         </div>
       </div>
     </div>
+
+    <!-- Modal Archivage -->
+    <div class="modal" *ngIf="afficherModalArchivage" (click)="fermerModalArchivage($event)">
+      <div class="modal-content modal-small" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h3>Archiver l'historique</h3>
+          <button class="btn-close" (click)="fermerModalArchivage()">Fermer</button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-description">
+            Toutes les entrées d'historique jusqu'à la date sélectionnée seront archivées et supprimées de la table principale.
+          </p>
+          <div class="form-group">
+            <label class="form-label">Date de fin d'archivage *</label>
+            <input 
+              type="date" 
+              [(ngModel)]="dateFinArchivageStr" 
+              class="form-control"
+              [max]="dateMaxArchivage"
+            />
+            <small class="form-hint">
+              Les entrées jusqu'à cette date (inclusive) seront archivées
+            </small>
+          </div>
+          <div class="error-message" *ngIf="archivageError">
+            {{ archivageError }}
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" (click)="fermerModalArchivage()">
+            Annuler
+          </button>
+          <button type="button" class="btn btn-warning" (click)="confirmerArchivage()" [disabled]="!dateFinArchivageStr || isArchiving">
+            {{ isArchiving ? 'Archivage...' : 'Archiver' }}
+          </button>
+        </div>
+      </div>
+    </div>
   `,
   styles: [`
     .stats-header {
@@ -626,6 +689,70 @@ import { AuthService } from '../../services/auth.service';
       padding: 40px 20px;
       color: #94a3b8;
     }
+
+    .date-range-selector {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    }
+
+    .date-range-controls {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      color: #1e293b;
+      cursor: pointer;
+    }
+
+    .checkbox-label input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: #3b82f6;
+      cursor: pointer;
+    }
+
+    .date-inputs {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .date-input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .date-input-group label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #475569;
+    }
+
+    .date-input-group input[type="date"] {
+      padding: 8px 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 14px;
+      color: #1e293b;
+      cursor: pointer;
+    }
+
+    .date-input-group input[type="date"]:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
   `]
 })
 export class StatistiquesComponent {
@@ -633,26 +760,108 @@ export class StatistiquesComponent {
   private pdfExport = inject(PdfExportService);
   private dataService = inject(DataService);
   private authService = inject(AuthService);
+  private notification = inject(NotificationService);
   
   statistiquesChargeTravail = signal<StatistiqueChargeTravail[]>([]);
 
-  // Use computed to reactively recalculate statistics when historique changes
-  statistiquesBinomes = computed(() => this.statistiquesService.getStatistiquesBinomes());
-  statistiquesZones = computed(() => this.statistiquesService.getStatistiquesZones());
-  statistiquesAgents = computed(() => this.statistiquesService.getStatistiquesAgents());
-  statistiquesVehicules = computed(() => this.statistiquesService.getStatistiquesVehicules());
-  statistiquesExterieur = computed(() => this.statistiquesService.getStatistiquesExterieur());
-  statistiquesEcoles = computed(() => this.statistiquesService.getStatistiquesEcoles());
-  pairesPlusFrequentes = computed(() => this.statistiquesService.getPairesPlusFrequentes(10));
+  // Date range for filtering statistics
+  voirTout = true;
+  dateDebut?: Date;
+  dateFin?: Date;
+  dateDebutStr?: string;
+  dateFinStr?: string;
+
+  // Archivage
+  canArchive = this.authService.hasPermission('canEditHistorique');
+  afficherModalArchivage = false;
+  dateFinArchivageStr?: string;
+  dateFinArchivage?: Date;
+  archivageError = '';
+  isArchiving = false;
+  
+  get dateMaxArchivage(): string {
+    const today = new Date();
+    today.setDate(today.getDate() - 1); // Yesterday max
+    return today.toISOString().split('T')[0];
+  }
+
+  // Use computed to reactively recalculate statistics when historique changes or date range changes or date range changes
+  statistiquesBinomes = computed(() => {
+    if (this.voirTout) {
+      return this.statistiquesService.getStatistiquesBinomes();
+    }
+    return this.statistiquesService.getStatistiquesBinomes(this.dateDebut, this.dateFin);
+  });
+  statistiquesZones = computed(() => {
+    if (this.voirTout) {
+      return this.statistiquesService.getStatistiquesZones();
+    }
+    return this.statistiquesService.getStatistiquesZones(this.dateDebut, this.dateFin);
+  });
+  statistiquesAgents = computed(() => {
+    if (this.voirTout) {
+      return this.statistiquesService.getStatistiquesAgents();
+    }
+    return this.statistiquesService.getStatistiquesAgents(this.dateDebut, this.dateFin);
+  });
+  statistiquesVehicules = computed(() => {
+    if (this.voirTout) {
+      return this.statistiquesService.getStatistiquesVehicules();
+    }
+    return this.statistiquesService.getStatistiquesVehicules(this.dateDebut, this.dateFin);
+  });
+  statistiquesExterieur = computed(() => {
+    if (this.voirTout) {
+      return this.statistiquesService.getStatistiquesExterieur();
+    }
+    return this.statistiquesService.getStatistiquesExterieur(this.dateDebut, this.dateFin);
+  });
+  statistiquesEcoles = computed(() => {
+    if (this.voirTout) {
+      return this.statistiquesService.getStatistiquesEcoles();
+    }
+    return this.statistiquesService.getStatistiquesEcoles(this.dateDebut, this.dateFin);
+  });
+  pairesPlusFrequentes = computed(() => {
+    if (this.voirTout) {
+      return this.statistiquesService.getPairesPlusFrequentes(10);
+    }
+    return this.statistiquesService.getPairesPlusFrequentes(10, this.dateDebut, this.dateFin);
+  });
 
   constructor() {
     // Statistics will be recalculated automatically when historique changes
     this.chargerChargeTravail();
   }
   
+  onVoirToutChange(): void {
+    if (this.voirTout) {
+      this.dateDebut = undefined;
+      this.dateFin = undefined;
+      this.dateDebutStr = undefined;
+      this.dateFinStr = undefined;
+    }
+    this.chargerChargeTravail();
+  }
+
+  onDateDebutChange(value: string): void {
+    this.dateDebutStr = value;
+    this.dateDebut = value ? new Date(value) : undefined;
+    this.chargerChargeTravail();
+  }
+
+  onDateFinChange(value: string): void {
+    this.dateFinStr = value;
+    this.dateFin = value ? new Date(value) : undefined;
+    this.chargerChargeTravail();
+  }
+  
   async chargerChargeTravail(): Promise<void> {
     if (this.isManager()) {
-      const stats = await this.statistiquesService.getStatistiquesChargeTravail();
+      const stats = await this.statistiquesService.getStatistiquesChargeTravail(
+        this.voirTout ? undefined : this.dateDebut,
+        this.voirTout ? undefined : this.dateFin
+      );
       this.statistiquesChargeTravail.set(stats);
     }
   }
@@ -711,5 +920,66 @@ export class StatistiquesComponent {
       this.statistiquesAgents(),
       this.statistiquesZones()
     );
+  }
+
+  ouvrirModalArchivage(): void {
+    if (!this.canArchive) return;
+    this.afficherModalArchivage = true;
+    this.archivageError = '';
+    this.dateFinArchivageStr = undefined;
+    this.dateFinArchivage = undefined;
+  }
+
+  fermerModalArchivage(event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+    }
+    this.afficherModalArchivage = false;
+    this.archivageError = '';
+    this.dateFinArchivageStr = undefined;
+    this.dateFinArchivage = undefined;
+  }
+
+  async confirmerArchivage(): Promise<void> {
+    if (!this.dateFinArchivageStr) {
+      this.archivageError = 'Veuillez sélectionner une date de fin d\'archivage';
+      return;
+    }
+
+    const dateFin = new Date(this.dateFinArchivageStr);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (dateFin >= today) {
+      this.archivageError = 'La date de fin d\'archivage doit être antérieure à aujourd\'hui';
+      return;
+    }
+
+    // Confirmation
+    const confirmed = await this.notification.confirm({
+      title: 'Confirmer l\'archivage',
+      message: `Êtes-vous sûr de vouloir archiver toutes les entrées jusqu'au ${dateFin.toLocaleDateString('fr-FR')} ? Cette action est irréversible.`,
+      type: 'warning'
+    });
+
+    if (!confirmed) return;
+
+    this.isArchiving = true;
+    this.archivageError = '';
+
+    try {
+      const count = await this.dataService.archiverHistorique(dateFin);
+      await this.notification.alert({
+        title: 'Archivage réussi',
+        message: `${count} entrée(s) ont été archivée(s) avec succès.`,
+        type: 'success'
+      });
+      this.fermerModalArchivage();
+    } catch (error: any) {
+      this.archivageError = error?.message || 'Une erreur est survenue lors de l\'archivage';
+      console.error('Error archiving:', error);
+    } finally {
+      this.isArchiving = false;
+    }
   }
 }
