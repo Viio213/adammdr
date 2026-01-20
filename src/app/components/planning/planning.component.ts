@@ -467,7 +467,7 @@ export interface ConflitGroupe {
       <div class="modal-binome" (click)="$event.stopPropagation()">
         <div class="modal-binome-header">
           <h3>Modifier le groupe</h3>
-          <button class="btn-close" (click)="fermerModalBinome()">Fermer</button>
+          <button class="btn-close" (click)="fermerModalBinome()" title="Fermer">×</button>
         </div>
         <div class="modal-binome-content">
           <p class="modal-info">Sélectionnez les agents pour ce groupe (2-3 agents) :</p>
@@ -518,7 +518,7 @@ export interface ConflitGroupe {
       <div class="modal-content modal-export" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <h3>Exporter des plannings</h3>
-          <button class="btn-close" (click)="fermerModalExport()">Fermer</button>
+          <button class="btn-close" (click)="fermerModalExport()" title="Fermer">×</button>
         </div>
         <div class="modal-body">
           <p class="modal-description">
@@ -587,7 +587,7 @@ export interface ConflitGroupe {
       <div class="modal-content modal-generation-multiple" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <h3>Générer plusieurs plannings</h3>
-          <button class="btn-close" (click)="fermerModalGenerationMultiple()">Fermer</button>
+          <button class="btn-close" (click)="fermerModalGenerationMultiple()" title="Fermer">×</button>
         </div>
         <div class="modal-body">
           <div class="form-group">

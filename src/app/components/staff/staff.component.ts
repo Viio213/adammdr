@@ -87,7 +87,7 @@ import { UserRole } from '../../models/user.model';
       <div class="modal-content" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <h3>{{ agentEnEdition ? 'Modifier' : 'Ajouter' }} un Agent</h3>
-          <button class="btn-close" (click)="fermerModal()">Fermer</button>
+          <button class="btn-close" (click)="fermerModal()" title="Fermer">×</button>
         </div>
         <form [formGroup]="agentForm" (ngSubmit)="sauvegarderAgent()">
           <div class="form-group">

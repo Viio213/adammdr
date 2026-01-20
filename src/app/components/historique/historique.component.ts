@@ -347,7 +347,7 @@ interface HistoriqueJour {
       <div class="modal-content modal-small" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <h3>Archiver l'historique</h3>
-          <button class="btn-close" (click)="fermerModalArchivage()">Fermer</button>
+          <button class="btn-close" (click)="fermerModalArchivage()" title="Fermer">×</button>
         </div>
         <div class="modal-body">
           <p class="modal-description">

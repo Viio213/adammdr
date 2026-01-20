@@ -89,7 +89,7 @@ import { Agent, JourSemaine, DemiJournee, Disponibilite, TypeContrat } from '../
       <div class="modal-content" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <h3>{{ utilisateurEnEdition ? 'Modifier' : 'Ajouter' }} un Utilisateur</h3>
-          <button class="btn-close" (click)="fermerModal()">Fermer</button>
+          <button class="btn-close" (click)="fermerModal()" title="Fermer">×</button>
         </div>
         <form [formGroup]="userForm" (ngSubmit)="sauvegarderUtilisateur()">
           <div class="form-row">
@@ -229,7 +229,7 @@ import { Agent, JourSemaine, DemiJournee, Disponibilite, TypeContrat } from '../
       <div class="modal-content modal-small" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <h3>Changer le mot de passe</h3>
-          <button class="btn-close" (click)="fermerModalPassword()">Fermer</button>
+          <button class="btn-close" (click)="fermerModalPassword()" title="Fermer">×</button>
         </div>
         <form (ngSubmit)="sauvegarderMotDePasse()">
           <p class="password-user">Utilisateur : <strong>{{ utilisateurPassword?.nom }} {{ utilisateurPassword?.prenom }}</strong></p>

@@ -146,7 +146,7 @@ import { Agent, JourSemaine, DemiJournee } from '../../models/agent.model';
       <div class="modal-content" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <h3>{{ congeEnEdition ? 'Modifier' : 'Ajouter' }} un Congé</h3>
-          <button class="btn-close" (click)="fermerModal()">Fermer</button>
+          <button class="btn-close" (click)="fermerModal()" title="Fermer">×</button>
         </div>
         <form [formGroup]="congeForm" (ngSubmit)="sauvegarderConge()">
           <!-- Agent selection -->
