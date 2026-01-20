@@ -2,6 +2,7 @@ import { Injectable, inject, signal, computed } from '@angular/core';
 import { Router } from '@angular/router';
 import { User, UserRole, ROLE_PERMISSIONS } from '../models/user.model';
 import { SupabaseService } from './supabase.service';
+import { PasswordService } from './password.service';
 
 @Injectable({
   providedIn: 'root'
@@ -10,6 +11,7 @@ export class AuthService {
   private readonly STORAGE_KEY_CURRENT_USER = 'adammdr_current_user';
   private supabase = inject(SupabaseService);
   private router = inject(Router);
+  private passwordService = inject(PasswordService);
 
   // Signals for reactive state
   currentUser = signal<User | null>(this.loadCurrentUser());
@@ -96,7 +98,9 @@ export class AuthService {
         return { success: false, message: 'Identifiant ou mot de passe incorrect' };
       }
 
-      if (userData.password !== password) {
+      // Check password (supports both hashed and plain text for migration)
+      const passwordMatch = await this.verifyPassword(password, userData.password);
+      if (!passwordMatch) {
         return { success: false, message: 'Identifiant ou mot de passe incorrect' };
       }
 
@@ -106,28 +110,42 @@ export class AuthService {
 
       const user = this.mapUserFromDb(userData);
 
+      // If password was plain text, hash it and update (migration)
+      if (!this.passwordService.isHashed(userData.password)) {
+        const hashedPassword = await this.passwordService.hashPassword(password);
+        user.password = hashedPassword;
+        await this.updateUser(user);
+      }
+
       // Update last login
       user.derniereConnexion = new Date();
       await this.updateUser(user);
 
-      // Set current user
-      this.currentUser.set(user);
-      this.saveCurrentUser(user);
+      // Set current user (without password for security)
+      const userWithoutPassword = { ...user, password: '' };
+      this.currentUser.set(userWithoutPassword);
+      this.saveCurrentUser(userWithoutPassword);
 
       return { success: true, message: 'Connexion réussie' };
     } catch (error) {
       console.error('Login error:', error);
       // Fallback to local check
-      return this.localLogin(username, password);
+      return await this.localLogin(username, password);
     }
   }
 
-  private localLogin(username: string, password: string): { success: boolean; message: string } {
+  private async localLogin(username: string, password: string): Promise<{ success: boolean; message: string }> {
     const user = this.users().find(
-      u => u.username.toLowerCase() === username.toLowerCase() && u.password === password
+      u => u.username.toLowerCase() === username.toLowerCase()
     );
 
     if (!user) {
+      return { success: false, message: 'Identifiant ou mot de passe incorrect' };
+    }
+
+    // Check password (supports both hashed and plain text for migration)
+    const passwordMatch = await this.verifyPassword(password, user.password);
+    if (!passwordMatch) {
       return { success: false, message: 'Identifiant ou mot de passe incorrect' };
     }
 
@@ -135,9 +153,18 @@ export class AuthService {
       return { success: false, message: 'Ce compte est désactivé' };
     }
 
+    // If password was plain text, hash it and update (migration)
+    if (!this.passwordService.isHashed(user.password)) {
+      const hashedPassword = await this.passwordService.hashPassword(password);
+      user.password = hashedPassword;
+      await this.updateUser(user);
+    }
+
     user.derniereConnexion = new Date();
-    this.currentUser.set(user);
-    this.saveCurrentUser(user);
+    // Set current user without password for security
+    const userWithoutPassword = { ...user, password: '' };
+    this.currentUser.set(userWithoutPassword);
+    this.saveCurrentUser(userWithoutPassword);
 
     return { success: true, message: 'Connexion réussie' };
   }
@@ -206,14 +233,20 @@ export class AuthService {
     }
 
     try {
-      const newUser = await this.supabase.createUser(user);
+      // Hash password before saving
+      const hashedPassword = await this.passwordService.ensureHashed(user.password);
+      const userWithHashedPassword = { ...user, password: hashedPassword };
+      
+      const newUser = await this.supabase.createUser(userWithHashedPassword);
       const users = [...this.users(), newUser];
       this.users.set(users);
       return { success: true, message: 'Utilisateur créé avec succès' };
     } catch (error) {
       console.error('Error creating user:', error);
-      // Fallback to local
-      const users = [...this.users(), user];
+      // Fallback to local - hash password
+      const hashedPassword = await this.passwordService.ensureHashed(user.password);
+      const userWithHashedPassword = { ...user, password: hashedPassword };
+      const users = [...this.users(), userWithHashedPassword];
       this.users.set(users);
       return { success: true, message: 'Utilisateur créé avec succès' };
     }
@@ -221,19 +254,26 @@ export class AuthService {
 
   async updateUser(user: User): Promise<void> {
     try {
-      await this.supabase.updateUser(user.id, user);
-      const users = this.users().map(u => u.id === user.id ? user : u);
+      // Hash password if it's not already hashed (for migration or password change)
+      const hashedPassword = await this.passwordService.ensureHashed(user.password);
+      const userWithHashedPassword = { ...user, password: hashedPassword };
+      
+      await this.supabase.updateUser(user.id, userWithHashedPassword);
+      const users = this.users().map(u => u.id === user.id ? userWithHashedPassword : u);
       this.users.set(users);
 
-      // Update current user if it's the same
+      // Update current user if it's the same (without password for security)
       if (this.currentUser()?.id === user.id) {
-        this.currentUser.set(user);
-        this.saveCurrentUser(user);
+        const userWithoutPassword = { ...userWithHashedPassword, password: '' };
+        this.currentUser.set(userWithoutPassword);
+        this.saveCurrentUser(userWithoutPassword);
       }
     } catch (error) {
       console.error('Error updating user:', error);
-      // Fallback to local
-      const users = this.users().map(u => u.id === user.id ? user : u);
+      // Fallback to local - hash password
+      const hashedPassword = await this.passwordService.ensureHashed(user.password);
+      const userWithHashedPassword = { ...user, password: hashedPassword };
+      const users = this.users().map(u => u.id === user.id ? userWithHashedPassword : u);
       this.users.set(users);
     }
   }
@@ -269,8 +309,23 @@ export class AuthService {
   async changePassword(userId: string, newPassword: string): Promise<void> {
     const user = this.users().find(u => u.id === userId);
     if (user) {
-      const updatedUser = { ...user, password: newPassword };
+      // Hash the new password
+      const hashedPassword = await this.passwordService.hashPassword(newPassword);
+      const updatedUser = { ...user, password: hashedPassword };
       await this.updateUser(updatedUser);
+    }
+  }
+
+  /**
+   * Verify password against stored password (supports both hashed and plain text for migration)
+   */
+  private async verifyPassword(plainPassword: string, storedPassword: string): Promise<boolean> {
+    if (this.passwordService.isHashed(storedPassword)) {
+      // Password is hashed, use bcrypt compare
+      return this.passwordService.comparePassword(plainPassword, storedPassword);
+    } else {
+      // Password is plain text (legacy), compare directly
+      return plainPassword === storedPassword;
     }
   }
 
@@ -294,7 +349,9 @@ export class AuthService {
 
   private saveCurrentUser(user: User): void {
     try {
-      localStorage.setItem(this.STORAGE_KEY_CURRENT_USER, JSON.stringify(user));
+      // Never save password in localStorage for security
+      const userWithoutPassword = { ...user, password: '' };
+      localStorage.setItem(this.STORAGE_KEY_CURRENT_USER, JSON.stringify(userWithoutPassword));
     } catch (error) {
       console.error('Error saving current user:', error);
     }
